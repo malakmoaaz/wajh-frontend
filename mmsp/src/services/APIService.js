@@ -37,4 +37,20 @@ export const APIService = {
       body: JSON.stringify({ landmarks, imageQuality, poseData }),
     }),
   predictionHistory: () => request('/api/predict/history'),
+
+  // Patients (doctor-facing)
+  listPatients: () => request('/api/patients'),
+  createPatient: (patient) =>
+    request('/api/patients', { method: 'POST', body: JSON.stringify(patient) }),
+  updatePatient: (id, fields) =>
+    request(`/api/patients/${id}`, { method: 'PATCH', body: JSON.stringify(fields) }),
+
+  // Cases & Simulations (doctor-facing)
+  createCase: (patientId, payload) =>
+    request(`/api/patients/${patientId}/cases`, { method: 'POST', body: JSON.stringify(payload) }),
+  createSimulation: (caseId, payload) =>
+    request(`/api/cases/${caseId}/simulations`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  // Patient View (patient-facing)
+  patientMe: () => request('/api/patient/me'),
 };

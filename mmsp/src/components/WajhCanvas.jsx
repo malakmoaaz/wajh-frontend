@@ -27,6 +27,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { AIService }       from '../services/AIService';
 import { AnalysisService } from '../services/AnalysisService';
+import { APIService }      from '../services/APIService';
 import { SurgicalReadout } from './SurgicalReadout';
 import { CalibrationModal } from './CalibrationModal';
 import { generateReport } from '../services/PDFReportService';
@@ -35,7 +36,8 @@ import {
     PROCEDURE_PRESETS,
     DEFAULT_PROCEDURE_ID,
     buildProcedureSimulationLandmarks,
-    getProcedurePreset
+    getProcedurePreset,
+    mapRecommendationToPresetId
 } from '../services/OrthognathicProcedures';
 
 /**
@@ -69,6 +71,9 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
 
     /** Index of landmark currently being dragged (-1 if none) */
     const [draggingIdx, setDraggingIdx] = useState(null);
+
+    /** Warning message shown when a landmark hits its movement limit */
+    const [rangeWarning, setRangeWarning] = useState(null);
 
     /** Loaded image object for rendering */
     const [imgObj, setImgObj] = useState(null);
@@ -106,6 +111,18 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     const [showComparisonSlider, setShowComparisonSlider] = useState(false);
     const [comparisonSplit, setComparisonSplit] = useState(50);
     const [comparisonMode, setComparisonMode] = useState('split');
+
+    // ── Save to Patient Record ──────────────────────────────────
+    const [showSavePanel, setShowSavePanel] = useState(false);
+    const [savePatientMode, setSavePatientMode] = useState('new'); // 'new' | 'existing'
+    const [doctorPatients, setDoctorPatients] = useState([]);
+    const [selectedPatientId, setSelectedPatientId] = useState('');
+    const [newPatientFirstName, setNewPatientFirstName] = useState('');
+    const [newPatientLastName, setNewPatientLastName] = useState('');
+    const [newPatientAccountEmail, setNewPatientAccountEmail] = useState('');
+    const [doctorNotesForPatient, setDoctorNotesForPatient] = useState('');
+    const [isSavingCase, setIsSavingCase] = useState(false);
+    const [saveCaseStatus, setSaveCaseStatus] = useState('');
     const [selectedProcedureId, setSelectedProcedureId] = useState(DEFAULT_PROCEDURE_ID);
     const [procedureIntensity, setProcedureIntensity] = useState(
         getProcedurePreset(DEFAULT_PROCEDURE_ID)?.intensity ?? 1
@@ -190,6 +207,9 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // ── Golden Ratio state ─────────────────────────────────────
     const [goldenRatioOn,     setGoldenRatioOn]     = useState(false);
     const [goldenRatioData,   setGoldenRatioData]   = useState(null);
+    // 'reference' = informational overlay only; 'choice' = lets the user apply
+    // the suggested φ correction directly to the relevant landmark(s)
+    const [goldenRatioPresentationMode, setGoldenRatioPresentationMode] = useState('reference');
     const [isGoldenLoading,   setIsGoldenLoading]   = useState(false);
     const [showGoldenLines,   setShowGoldenLines]   = useState(true);
 
@@ -266,6 +286,52 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             normY: yNorm
         };
     }, [imgObj]);
+
+    // ========================================
+    // VALIDATION: Landmark Movement Range
+    // ========================================
+    // Maximum allowed displacement from the originally detected position.
+    // This is a conservative placeholder bound (not a published clinical value) —
+    // validate/adjust against cephalometric movement norms for your defense.
+    const MAX_LANDMARK_DISPLACEMENT_MM = 25;
+    const rangeWarningTimeout = useRef(null);
+
+    const showRangeWarning = useCallback((message) => {
+        setRangeWarning(message);
+        if (rangeWarningTimeout.current) clearTimeout(rangeWarningTimeout.current);
+        rangeWarningTimeout.current = setTimeout(() => setRangeWarning(null), 2600);
+    }, []);
+
+    /**
+     * Clamps a proposed (x, y) position so the landmark cannot move further
+     * than MAX_LANDMARK_DISPLACEMENT_MM from where it was originally detected.
+     * Returns the (possibly clamped) coordinates and fires a warning if clamped.
+     */
+    const clampToValidRange = useCallback((idx, x, y) => {
+        const original = initialLandmarks?.[idx];
+        if (!original) return { x, y };
+
+        const mmPerPx = calibrationData?.ratio || 0.264583;
+        const dxPx = x - original.x;
+        const dyPx = y - original.y;
+        const distPx = Math.hypot(dxPx, dyPx);
+        const distMm = distPx * mmPerPx;
+
+        if (distMm <= MAX_LANDMARK_DISPLACEMENT_MM || distPx === 0) {
+            return { x, y };
+        }
+
+        const maxPx = MAX_LANDMARK_DISPLACEMENT_MM / mmPerPx;
+        const scale = maxPx / distPx;
+        const label = original.name || `Landmark ${idx + 1}`;
+        showRangeWarning(`${label} limited to ${MAX_LANDMARK_DISPLACEMENT_MM}mm from its detected position — out of clinically valid range.`);
+
+        return { x: original.x + dxPx * scale, y: original.y + dyPx * scale };
+    }, [initialLandmarks, calibrationData, showRangeWarning]);
+
+    useEffect(() => () => {
+        if (rangeWarningTimeout.current) clearTimeout(rangeWarningTimeout.current);
+    }, []);
 
     // ========================================
     // RENDERING: Canvas Draw Loop
@@ -365,6 +431,19 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                     ctx.fillStyle = isActive || isDragging ? '#ffffff' : color;
                     ctx.fill();
 
+                    // 6. Contour halo — only drawn around landmarks that changed,
+                    // so the user can see at a glance which ones were edited
+                    // without re-rendering/highlighting all 45 points.
+                    if (hasMoved && !isActive && !isDragging) {
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, size + 6, 0, 2 * Math.PI);
+                        ctx.strokeStyle = 'rgba(249,115,22,0.55)';
+                        ctx.lineWidth = 1.25;
+                        ctx.setLineDash([2, 3]);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    }
+
                     // Reset shadow
                     ctx.shadowBlur = 0;
                 });
@@ -449,7 +528,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             // We don't want to crash the loop forever, but maybe pause it?
             // For now, just logging to see if this is the cause.
         }
-    }, [imgObj, points, simulationResult, draggingIdx, activePointIdx, showAiOverlay, analysis, showGoldenLines, goldenRatioData]);
+    }, [imgObj, points, initialLandmarks, simulationResult, draggingIdx, activePointIdx, showAiOverlay, analysis, showGoldenLines, goldenRatioData]);
 
     useEffect(() => {
         requestAnimationFrame(draw);
@@ -507,7 +586,8 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     const handleMouseMove = (e) => {
         if (isSimulating) return;
         if (draggingIdx === null) return;
-        const { x, y } = getMousePos(e);
+        const raw = getMousePos(e);
+        const { x, y } = clampToValidRange(draggingIdx, raw.x, raw.y);
         const activePoint = points[draggingIdx];
 
         setPoints(prev => {
@@ -556,7 +636,8 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             setPoints(prev => {
                 const next = [...prev];
                 const p = next[activePointIdx];
-                const movedPoint = patchPoint3DFields(p, p.x + dx, p.y + dy);
+                const clamped = clampToValidRange(activePointIdx, p.x + dx, p.y + dy);
+                const movedPoint = patchPoint3DFields(p, clamped.x, clamped.y);
                 next[activePointIdx] = movedPoint;
                 return next;
             });
@@ -568,14 +649,15 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 if (!sourcePoint) return prev;
                 const meshIndex = sourcePoint.mpId ?? sourcePoint.index;
                 if (meshIndex === undefined || !next[meshIndex]) return prev;
-                next[meshIndex] = patchPoint3DFields(next[meshIndex], next[meshIndex].x + dx, next[meshIndex].y + dy);
+                const clamped = clampToValidRange(activePointIdx, next[meshIndex].x + dx, next[meshIndex].y + dy);
+                next[meshIndex] = patchPoint3DFields(next[meshIndex], clamped.x, clamped.y);
                 return next;
             });
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activePointIdx, isSimulating, simulationResult, patchPoint3DFields, points]);
+    }, [activePointIdx, isSimulating, simulationResult, patchPoint3DFields, points, clampToValidRange]);
 
     // ========================================
     // HANDLERS: Simulation & Calibration
@@ -590,13 +672,15 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
      * 3. Calculate confidence score
      * 4. Update UI with result
      */
-    const handleSimulate = async (landmarkSet = points) => {
+    const handleSimulate = async (landmarkSet = points, procedureIdOverride = null) => {
         if (!imgObj) return;
         if (landmarkSet && typeof landmarkSet.preventDefault === 'function') {
             landmarkSet = points;
         }
+        const activeProcedureId = procedureIdOverride ?? selectedProcedureId;
+        const activeProcedure = procedureIdOverride ? getProcedurePreset(procedureIdOverride) : selectedProcedure;
         setIsSimulating(true);
-        setSimulationStatus(`Rendering ${selectedProcedure.label}...`);
+        setSimulationStatus(`Rendering ${activeProcedure.label}...`);
         setSimulationError('');
         setShowComparisonSlider(false);
         setAnalysis(null);
@@ -607,7 +691,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             const procedureTargets = buildProcedureSimulationLandmarks(
                 originalPoints,
                 landmarkSet,
-                selectedProcedureId,
+                activeProcedureId,
                 {
                     intensity: procedureIntensity,
                     width: imgObj.width,
@@ -619,7 +703,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 originalPoints,
                 procedureTargets,
                 {
-                    procedureId: selectedProcedureId,
+                    procedureId: activeProcedureId,
                     intensity: procedureIntensity
                 }
             );
@@ -638,7 +722,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             setSimulationConfidence(confidence);
             setSimulationConfidenceDetails(confidenceDetails);
             console.log("Simulation confidence:", confidence + "%");
-            setSimulationStatus(`Completed ${selectedProcedure.label}.`);
+            setSimulationStatus(`Completed ${activeProcedure.label}.`);
 
             // Fire AI analysis after warp completes (non-blocking)
             setIsAnalyzing(true);
@@ -661,6 +745,146 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             setSimulationStatus('');
         } finally {
             setIsSimulating(false);
+        }
+    };
+
+    const [applyNotice, setApplyNotice] = useState(null);
+
+    /**
+     * Apply a recommended procedure (from the Procedure Recommendation panel,
+     * or one of its "Other possibilities" alternatives) straight to the
+     * simulation, instead of requiring the user to pick it from the preset
+     * list manually.
+     */
+    const handleApplyRecommendation = (procedureLabel) => {
+        const presetId = mapRecommendationToPresetId(procedureLabel);
+        if (!presetId) {
+            setApplyNotice(`"${procedureLabel}" has no direct surgical preset to simulate — it's informational only.`);
+            setTimeout(() => setApplyNotice(null), 3500);
+            return;
+        }
+        setSelectedProcedureId(presetId);
+        handleSimulate(points, presetId);
+    };
+
+    /**
+     * Applies a golden-ratio deviation correction directly to the relevant
+     * landmark(s) — only meaningful in "choice" presentation mode. Reuses the
+     * same range clamp as manual dragging so this can't push a landmark past
+     * its valid movement limit either.
+     */
+    const handleApplyGoldenRatioCorrection = (ratio) => {
+        if (!ratio || ratio.within_norm) return;
+        const mmPerPx = calibrationData?.ratio || 0.264583;
+        const deltaPx = ratio.deviation_mm / mmPerPx;
+
+        const movePoint = (id, dxPx, dyPx) => {
+            const idx = points.findIndex(p => p.id === id);
+            if (idx === -1) return;
+            setPoints(prev => {
+                const next = [...prev];
+                const p = next[idx];
+                const clamped = clampToValidRange(idx, p.x + dxPx, p.y + dyPx);
+                next[idx] = patchPoint3DFields(p, clamped.x, clamped.y);
+                return next;
+            });
+        };
+
+        if (ratio.label === 'Lower / Upper Face Height') {
+            const movingUp = ratio.current > ratio.ideal;
+            movePoint('gnathion', 0, movingUp ? -deltaPx : deltaPx);
+        } else if (ratio.label === 'Jaw Width / Face Width') {
+            const moveInward = ratio.current > ratio.ideal;
+            const half = deltaPx / 2;
+            movePoint('gonion_l', moveInward ? half : -half, 0);
+            movePoint('gonion_r', moveInward ? -half : half, 0);
+        }
+
+        setApplyNotice(`Applied φ correction for ${ratio.label}.`);
+        setTimeout(() => setApplyNotice(null), 3000);
+    };
+
+    const handleOpenSavePanel = async () => {
+        setShowSavePanel(true);
+        setSaveCaseStatus('');
+        try {
+            const list = await APIService.listPatients();
+            setDoctorPatients(Array.isArray(list) ? list : []);
+        } catch {
+            // Doctor Dashboard endpoints require a DOCTOR-role login; if this
+            // fails (e.g. logged in as PATIENT, or not authenticated) just
+            // leave the "existing patient" list empty — "new patient" still works.
+            setDoctorPatients([]);
+        }
+    };
+
+    /**
+     * Saves the current simulation (landmarks, procedure, confidence, golden
+     * ratio data, ML recommendation, and a snapshot of the result image) as a
+     * Case + Simulation against a patient record — creating that patient
+     * first if needed. This is what makes the result visible later in the
+     * Patient View.
+     */
+    const handleSaveToPatientRecord = async () => {
+        setIsSavingCase(true);
+        setSaveCaseStatus('');
+        try {
+            let patientId = selectedPatientId;
+
+            if (savePatientMode === 'new') {
+                if (!newPatientFirstName || !newPatientLastName) {
+                    setSaveCaseStatus('First and last name are required.');
+                    setIsSavingCase(false);
+                    return;
+                }
+                const patient = await APIService.createPatient({
+                    firstName: newPatientFirstName,
+                    lastName: newPatientLastName,
+                    notes: doctorNotesForPatient || undefined,
+                });
+                patientId = patient.id;
+
+                if (newPatientAccountEmail) {
+                    await APIService.updatePatient(patientId, { patientAccountEmail: newPatientAccountEmail });
+                }
+            } else if (!patientId) {
+                setSaveCaseStatus('Select a patient first.');
+                setIsSavingCase(false);
+                return;
+            } else if (doctorNotesForPatient) {
+                await APIService.updatePatient(patientId, { notes: doctorNotesForPatient });
+            }
+
+            const newCase = await APIService.createCase(patientId, {
+                title: selectedProcedure?.label || 'Maxillofacial Planning Case',
+                notes: doctorNotesForPatient || undefined,
+                calibration: calibrationData || undefined,
+            });
+
+            let resultImageData = null;
+            try {
+                resultImageData = canvasRef.current?.toDataURL('image/jpeg', 0.85) || null;
+            } catch {
+                resultImageData = null; // canvas may be tainted in rare cross-origin cases
+            }
+
+            await APIService.createSimulation(newCase.id, {
+                surgeryName: selectedProcedure?.label,
+                confidence: simulationConfidence,
+                initialLandmarks,
+                modifiedLandmarks: points,
+                resultImageData,
+                aiRecommendation: analysis || undefined,
+                goldenRatioData: goldenRatioData || undefined,
+                mlProcedure: analysis?.procedure,
+                mlConfidence: analysis?.confidencePct,
+            });
+
+            setSaveCaseStatus('Saved — visible in the Doctor Dashboard and (if linked) the Patient View.');
+        } catch (err) {
+            setSaveCaseStatus(err.message || 'Failed to save to patient record.');
+        } finally {
+            setIsSavingCase(false);
         }
     };
 
@@ -703,9 +927,10 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
 
     const handleLandmarkUpdate = (newPoint) => {
         if (activePointIdx === null || isSimulating) return;
+        const clamped = clampToValidRange(activePointIdx, newPoint.x, newPoint.y);
         const updatedPoints = points.map((point, index) =>
             index === activePointIdx
-                ? patchPoint3DFields(newPoint, newPoint.x, newPoint.y)
+                ? patchPoint3DFields(newPoint, clamped.x, clamped.y)
                 : point
         );
 
@@ -718,7 +943,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             if (!sourcePoint) return prev;
             const meshIndex = sourcePoint.mpId ?? sourcePoint.index;
             if (meshIndex === undefined || !next[meshIndex]) return prev;
-            next[meshIndex] = patchPoint3DFields(next[meshIndex], newPoint.x, newPoint.y);
+            next[meshIndex] = patchPoint3DFields(next[meshIndex], clamped.x, clamped.y);
             return next;
         });
     };
@@ -1097,6 +1322,28 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                         borderRadius: simulationResult ? '10px' : 0,
                         overflow: simulationResult ? 'hidden' : 'visible'
                     }}>
+                        {rangeWarning && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '12px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                zIndex: 6,
+                                maxWidth: '88%',
+                                padding: '8px 14px',
+                                borderRadius: '8px',
+                                background: 'rgba(248,113,113,0.14)',
+                                border: '1px solid rgba(248,113,113,0.45)',
+                                color: '#fca5a5',
+                                fontSize: '0.74rem',
+                                fontWeight: 600,
+                                textAlign: 'center',
+                                backdropFilter: 'blur(8px)',
+                                boxShadow: '0 4px 16px rgba(0,0,0,0.35)'
+                            }}>
+                                ⚠ {rangeWarning}
+                            </div>
+                        )}
                         {simulationResult && (
                             <div style={{
                                 position: 'absolute',
@@ -1872,6 +2119,33 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                     </button>
                                 </div>
 
+                                {/* Reference (informational) vs Choice (apply corrections) mode */}
+                                <div style={{
+                                    display:'flex', gap:6, padding:3,
+                                    background:'rgba(0,0,0,0.25)', borderRadius:8,
+                                    border:'1px solid rgba(251,191,36,0.15)'
+                                }}>
+                                    {['reference', 'choice'].map(mode => (
+                                        <button
+                                            key={mode}
+                                            onClick={() => setGoldenRatioPresentationMode(mode)}
+                                            style={{
+                                                flex:1, padding:'6px 8px', borderRadius:6, border:'none',
+                                                background: goldenRatioPresentationMode === mode ? '#fbbf24' : 'transparent',
+                                                color: goldenRatioPresentationMode === mode ? '#1a1300' : 'var(--text-muted)',
+                                                fontSize:'0.7rem', fontWeight:700, cursor:'pointer'
+                                            }}
+                                        >
+                                            {mode === 'reference' ? 'Reference Only' : 'Choice — Apply'}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div style={{fontSize:'0.68rem', color:'var(--text-muted)', marginTop:-6, lineHeight:1.4}}>
+                                    {goldenRatioPresentationMode === 'reference'
+                                        ? 'Showing φ deviations as a passive reference — landmarks are not changed.'
+                                        : 'You can apply suggested φ corrections directly to the landmarks below.'}
+                                </div>
+
                                 {/* Harmony Score */}
                                 <div style={{
                                     background:'rgba(251,191,36,0.08)', borderRadius:8,
@@ -1955,6 +2229,22 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                                         : `→ Adjust ${r.label} landmarks by ${r.deviation_mm}mm to reach φ ratio`
                                                     }
                                                 </div>
+                                                {goldenRatioPresentationMode === 'choice' && (
+                                                    <button
+                                                        onClick={() => handleApplyGoldenRatioCorrection(r)}
+                                                        disabled={isSimulating}
+                                                        style={{
+                                                            marginTop:8, width:'100%',
+                                                            padding:'7px 10px', borderRadius:6,
+                                                            border:'1px solid rgba(251,191,36,0.4)',
+                                                            background:'rgba(251,191,36,0.12)',
+                                                            color:'#fbbf24', fontSize:'0.72rem', fontWeight:700,
+                                                            cursor: isSimulating ? 'not-allowed' : 'pointer'
+                                                        }}
+                                                    >
+                                                        ✓ Apply This Correction
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -2044,6 +2334,33 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                         )}
                                     </div>
 
+                                    {/* Apply recommendation directly to the simulation */}
+                                    <button
+                                        onClick={() => handleApplyRecommendation(analysis.procedure)}
+                                        disabled={isSimulating}
+                                        style={{
+                                            display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                                            padding:'9px 12px', borderRadius:8,
+                                            border:'1px solid rgba(52,211,153,0.4)',
+                                            background: isSimulating ? 'rgba(52,211,153,0.06)' : 'rgba(52,211,153,0.12)',
+                                            color:'#34d399', fontSize:'0.78rem', fontWeight:700,
+                                            cursor: isSimulating ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        ✓ Apply This Recommendation
+                                    </button>
+
+                                    {applyNotice && (
+                                        <div style={{
+                                            fontSize:'0.72rem', color:'#fbbf24',
+                                            background:'rgba(251,191,36,0.08)',
+                                            border:'1px solid rgba(251,191,36,0.25)',
+                                            borderRadius:6, padding:'7px 10px'
+                                        }}>
+                                            {applyNotice}
+                                        </div>
+                                    )}
+
                                     {/* Clinical reasoning */}
                                     {analysis.reasoning && (
                                         <p style={{
@@ -2124,7 +2441,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                         </div>
                                     )}
 
-                                    {/* Top 3 alternatives */}
+                                    {/* Top 3 alternatives — each shown as its own separate, applicable card */}
                                     {analysis.top3?.length > 1 && (
                                         <details style={{marginTop:4}}>
                                             <summary style={{
@@ -2133,19 +2450,41 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                             }}>
                                                 Other possibilities
                                             </summary>
-                                            <div style={{marginTop:8, display:'flex', flexDirection:'column', gap:4}}>
-                                                {analysis.top3.slice(1).map((t,i) => (
-                                                    <div key={i} style={{
-                                                        display:'flex', justifyContent:'space-between',
-                                                        fontSize:'0.73rem', color:'var(--text-muted)',
-                                                        padding:'4px 8px',
-                                                        background:'rgba(255,255,255,0.02)',
-                                                        borderRadius:4
-                                                    }}>
-                                                        <span>{t.procedure}</span>
-                                                        <span style={{fontFamily:'monospace'}}>{t.probability}%</span>
-                                                    </div>
-                                                ))}
+                                            <div style={{marginTop:8, display:'flex', flexDirection:'column', gap:6}}>
+                                                {analysis.top3.slice(1).map((t,i) => {
+                                                    const altPresetId = mapRecommendationToPresetId(t.procedure);
+                                                    return (
+                                                        <div key={i} style={{
+                                                            display:'flex', justifyContent:'space-between',
+                                                            alignItems:'center', gap:8,
+                                                            fontSize:'0.73rem', color:'var(--text-muted)',
+                                                            padding:'7px 10px',
+                                                            background:'rgba(255,255,255,0.03)',
+                                                            border:'1px solid rgba(255,255,255,0.06)',
+                                                            borderRadius:6
+                                                        }}>
+                                                            <div style={{display:'flex', flexDirection:'column', gap:1}}>
+                                                                <span style={{color:'var(--text-main)', fontWeight:600}}>{t.procedure}</span>
+                                                                <span style={{fontFamily:'monospace', fontSize:'0.68rem'}}>{t.probability}% probability</span>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => handleApplyRecommendation(t.procedure)}
+                                                                disabled={isSimulating}
+                                                                title={altPresetId ? 'Apply this alternative instead' : 'Informational only — no surgical preset'}
+                                                                style={{
+                                                                    flexShrink:0,
+                                                                    padding:'5px 9px', borderRadius:6,
+                                                                    border:'1px solid rgba(56,189,248,0.35)',
+                                                                    background:'rgba(56,189,248,0.1)',
+                                                                    color:'#38bdf8', fontSize:'0.68rem', fontWeight:700,
+                                                                    cursor: isSimulating ? 'not-allowed' : 'pointer'
+                                                                }}
+                                                            >
+                                                                Apply
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </details>
                                     )}
@@ -2196,6 +2535,115 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                 <>Export PDF Report</>
                             )}
                         </button>
+
+                        {/* Save to Patient Record */}
+                        {simulationResult && (
+                            <button
+                                type="button"
+                                onClick={handleOpenSavePanel}
+                                style={{
+                                    padding: '14px', fontSize: '0.9rem', borderRadius: '8px',
+                                    border: '1px solid rgba(52,211,153,0.5)',
+                                    background: 'rgba(52,211,153,0.1)', color: '#34d399',
+                                    cursor: 'pointer', fontWeight: 700, width: '100%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                                }}
+                            >
+                                💾 Save to Patient Record
+                            </button>
+                        )}
+
+                        {showSavePanel && (
+                            <div style={{
+                                background: 'rgba(52,211,153,0.04)',
+                                border: '1px solid rgba(52,211,153,0.25)',
+                                borderRadius: 10, padding: 16,
+                                display: 'flex', flexDirection: 'column', gap: 10
+                            }}>
+                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                    <h4 style={{ color:'#34d399', margin:0, fontSize:'0.85rem', fontWeight:700 }}>Save This Result</h4>
+                                    <button onClick={() => setShowSavePanel(false)} style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:'0.9rem' }}>✕</button>
+                                </div>
+
+                                <div style={{ display:'flex', gap:6 }}>
+                                    {['new', 'existing'].map(mode => (
+                                        <button
+                                            key={mode}
+                                            onClick={() => setSavePatientMode(mode)}
+                                            style={{
+                                                flex:1, padding:'6px 8px', borderRadius:6, border:'none',
+                                                background: savePatientMode === mode ? '#34d399' : 'rgba(255,255,255,0.05)',
+                                                color: savePatientMode === mode ? '#06281c' : 'var(--text-muted)',
+                                                fontSize:'0.72rem', fontWeight:700, cursor:'pointer'
+                                            }}
+                                        >
+                                            {mode === 'new' ? 'New Patient' : 'Existing Patient'}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {savePatientMode === 'new' ? (<>
+                                    <input
+                                        placeholder="First name"
+                                        value={newPatientFirstName}
+                                        onChange={e => setNewPatientFirstName(e.target.value)}
+                                        style={{ padding:8, borderRadius:6, border:'1px solid var(--border-medium)', background:'var(--bg-elevated)', color:'var(--text-main)', fontSize:'0.8rem' }}
+                                    />
+                                    <input
+                                        placeholder="Last name"
+                                        value={newPatientLastName}
+                                        onChange={e => setNewPatientLastName(e.target.value)}
+                                        style={{ padding:8, borderRadius:6, border:'1px solid var(--border-medium)', background:'var(--bg-elevated)', color:'var(--text-main)', fontSize:'0.8rem' }}
+                                    />
+                                    <input
+                                        placeholder="Patient's account email (optional — links Patient View)"
+                                        value={newPatientAccountEmail}
+                                        onChange={e => setNewPatientAccountEmail(e.target.value)}
+                                        style={{ padding:8, borderRadius:6, border:'1px solid var(--border-medium)', background:'var(--bg-elevated)', color:'var(--text-main)', fontSize:'0.8rem' }}
+                                    />
+                                </>) : (
+                                    <select
+                                        value={selectedPatientId}
+                                        onChange={e => setSelectedPatientId(e.target.value)}
+                                        style={{ padding:8, borderRadius:6, border:'1px solid var(--border-medium)', background:'var(--bg-elevated)', color:'var(--text-main)', fontSize:'0.8rem' }}
+                                    >
+                                        <option value="">
+                                            {doctorPatients.length ? '— Choose a patient —' : 'No patients found (or not logged in as a doctor)'}
+                                        </option>
+                                        {doctorPatients.map(p => (
+                                            <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
+                                        ))}
+                                    </select>
+                                )}
+
+                                <textarea
+                                    placeholder="Notes for the patient (optional)"
+                                    rows={2}
+                                    value={doctorNotesForPatient}
+                                    onChange={e => setDoctorNotesForPatient(e.target.value)}
+                                    style={{ padding:8, borderRadius:6, border:'1px solid var(--border-medium)', background:'var(--bg-elevated)', color:'var(--text-main)', fontSize:'0.8rem', resize:'vertical' }}
+                                />
+
+                                <button
+                                    onClick={handleSaveToPatientRecord}
+                                    disabled={isSavingCase}
+                                    style={{
+                                        padding:'9px', borderRadius:6, border:'none',
+                                        background:'#34d399', color:'#06281c',
+                                        fontWeight:700, fontSize:'0.8rem',
+                                        cursor: isSavingCase ? 'wait' : 'pointer'
+                                    }}
+                                >
+                                    {isSavingCase ? 'Saving...' : 'Save'}
+                                </button>
+
+                                {saveCaseStatus && (
+                                    <div style={{ fontSize:'0.72rem', color: saveCaseStatus.startsWith('Saved') ? '#34d399' : '#f87171' }}>
+                                        {saveCaseStatus}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 ) : (
                     // Not Calibrated State

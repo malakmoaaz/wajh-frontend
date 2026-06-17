@@ -1,6 +1,20 @@
 import { useState, useEffect } from "react";
 
-const API = "http://localhost:4000/api";
+const API = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+
+// All requests need credentials:'include' so the httpOnly auth cookie is sent
+// cross-origin (Vercel frontend ↔ Railway backend) — none of the calls below
+// were doing this before, so every one of them was silently failing auth.
+async function authedFetch(path, options = {}) {
+    const res = await fetch(`${API}${path}`, {
+        ...options,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
+    return data;
+}
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -109,13 +123,10 @@ function NewPatientModal({ onClose, onSaved }) {
         if (!form.firstName || !form.lastName) { setError('First and last name are required.'); return; }
         setSaving(true);
         try {
-            const res = await fetch(`${API}/patients`, {
+            const data = await authedFetch('/patients', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(form)
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message);
             onSaved(data);
             onClose();
         } catch (e) { setError(e.message); }
@@ -189,15 +200,17 @@ export default function AdminDashboard() {
     const [selectedSim, setSelectedSim]         = useState(null);
     const [simDetail, setSimDetail]             = useState(null);
     const [loadingDetail, setLoadingDetail]     = useState(false);
-
-    useEffect(() => { fetchAll(); }, []);
+    const [linkEmail, setLinkEmail]             = useState('');
+    const [linkStatus, setLinkStatus]           = useState('');
+    const [notesDraft, setNotesDraft]           = useState('');
+    const [savingNotes, setSavingNotes]         = useState(false);
 
     async function fetchAll() {
         setLoading(true);
         try {
             const [p, s] = await Promise.all([
-                fetch(`${API}/patients`).then(r => r.json()).catch(() => []),
-                fetch(`${API}/simulations`).then(r => r.json()).catch(() => []),
+                authedFetch('/patients').catch(() => []),
+                authedFetch('/simulations').catch(() => []),
             ]);
             setPatients(Array.isArray(p) ? p : []);
             setSims(Array.isArray(s) ? s : []);
@@ -205,15 +218,52 @@ export default function AdminDashboard() {
         setLoading(false);
     }
 
+    useEffect(() => { fetchAll(); }, []);
+
     async function openPatient(p) {
         setSelectedPatient(p);
         setPatientDetail(null);
         setLoadingDetail(true);
+        setLinkEmail('');
+        setLinkStatus('');
+        setNotesDraft(p.notes || '');
         try {
-            const d = await fetch(`${API}/patients/${p.id}`).then(r => r.json());
+            const d = await authedFetch(`/patients/${p.id}`);
             setPatientDetail(d);
         } catch(e) { console.error(e); }
         setLoadingDetail(false);
+    }
+
+    async function handleLinkAccount() {
+        if (!linkEmail || !selectedPatient) return;
+        setLinkStatus('Linking...');
+        try {
+            const updated = await authedFetch(`/patients/${selectedPatient.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ patientAccountEmail: linkEmail }),
+            });
+            setSelectedPatient(updated);
+            setPatientDetail(prev => ({ ...prev, ...updated }));
+            setLinkStatus('Linked successfully.');
+            setLinkEmail('');
+        } catch (e) {
+            setLinkStatus(e.message);
+        }
+    }
+
+    async function handleSaveNotes() {
+        if (!selectedPatient) return;
+        setSavingNotes(true);
+        try {
+            const updated = await authedFetch(`/patients/${selectedPatient.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ notes: notesDraft }),
+            });
+            setSelectedPatient(updated);
+            setPatientDetail(prev => ({ ...prev, ...updated }));
+            setPatients(prev => prev.map(p => p.id === updated.id ? updated : p));
+        } catch (e) { console.error(e); }
+        setSavingNotes(false);
     }
 
     async function openSim(sim) {
@@ -221,7 +271,7 @@ export default function AdminDashboard() {
         setSimDetail(null);
         setLoadingDetail(true);
         try {
-            const d = await fetch(`${API}/simulations/${sim.id}`).then(r => r.json());
+            const d = await authedFetch(`/simulations/${sim.id}`);
             setSimDetail(d);
         } catch(e) { console.error(e); }
         setLoadingDetail(false);
@@ -229,7 +279,7 @@ export default function AdminDashboard() {
 
     async function deletePatient(id) {
         if (!confirm('Delete this patient and all their data?')) return;
-        await fetch(`${API}/patients/${id}`, { method: 'DELETE' });
+        await authedFetch(`/patients/${id}`, { method: 'DELETE' });
         setSelectedPatient(null); setPatientDetail(null);
         fetchAll();
     }
@@ -442,6 +492,44 @@ export default function AdminDashboard() {
                             {selectedPatient.notes && (
                                 <div style={{ marginTop:10, fontSize:'0.78rem', color:'var(--muted)', lineHeight:1.5 }}>{selectedPatient.notes}</div>
                             )}
+                        </div>
+
+                        <div className="detail-label">Patient Account Link</div>
+                        <div style={{ background:'var(--bg3)', borderRadius:8, padding:'14px 16px', marginBottom:20 }}>
+                            <p style={{ fontSize:'0.75rem', color:'var(--muted)', marginBottom:8 }}>
+                                {selectedPatient.userId
+                                    ? '✓ Linked — this patient can see their case in the Patient View.'
+                                    : 'Link this record to the patient\'s login (email) so they can see their result and notes.'}
+                            </p>
+                            {!selectedPatient.userId && (
+                                <div style={{ display:'flex', gap:8 }}>
+                                    <input
+                                        className="form-input"
+                                        type="email"
+                                        placeholder="patient@email.com"
+                                        value={linkEmail}
+                                        onChange={e => setLinkEmail(e.target.value)}
+                                        style={{ flex:1 }}
+                                    />
+                                    <button className="btn btn-primary" onClick={handleLinkAccount}>Link</button>
+                                </div>
+                            )}
+                            {linkStatus && <p style={{ fontSize:'0.72rem', color:'var(--gold)', marginTop:6 }}>{linkStatus}</p>}
+                        </div>
+
+                        <div className="detail-label">Notes for Patient</div>
+                        <div style={{ background:'var(--bg3)', borderRadius:8, padding:'14px 16px', marginBottom:20 }}>
+                            <textarea
+                                className="form-input"
+                                rows={3}
+                                value={notesDraft}
+                                onChange={e => setNotesDraft(e.target.value)}
+                                placeholder="Notes the patient will see in their Patient View..."
+                                style={{ resize:'vertical', width:'100%' }}
+                            />
+                            <button className="btn btn-primary" onClick={handleSaveNotes} disabled={savingNotes} style={{ marginTop:8 }}>
+                                {savingNotes ? 'Saving...' : 'Save Notes'}
+                            </button>
                         </div>
 
                         <div className="detail-label">Cases & Simulations</div>

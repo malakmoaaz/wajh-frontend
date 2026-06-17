@@ -223,10 +223,110 @@ const PROCEDURE_PRESETS = [
     }
 ];
 
+// ── Patient-friendly explanations ───────────────────────────────────────
+// Plain-language version of the clinical PROCEDURE_INFO used in the doctor
+// workspace — written for the Patient View, not for clinicians.
+const PATIENT_FRIENDLY_INFO = {
+    chin_advancement: {
+        whatItIs: 'A procedure that gently moves your chin bone forward to give your profile better balance. Only the chin is moved — your bite stays the same.',
+        recovery: '4–6 weeks',
+        whatToExpect: 'Some swelling and tightness around the chin for the first couple of weeks, with most people back to normal routines within about a month.',
+    },
+    chin_setback: {
+        whatItIs: 'A procedure that moves a chin that sticks out too far back into better balance with the rest of your face. Your bite is not affected.',
+        recovery: '4–6 weeks',
+        whatToExpect: 'Mild swelling around the chin and jawline that settles over a few weeks.',
+    },
+    mandibular_advancement: {
+        whatItIs: 'Your lower jaw is carefully repositioned forward so your bite and profile work better together. This is a well-established procedure called BSSO.',
+        recovery: '6–8 weeks',
+        whatToExpect: 'A soft-food diet and some swelling for the first couple of weeks, with most of the bruising and swelling resolving within 6–8 weeks.',
+    },
+    mandibular_setback: {
+        whatItIs: 'Your lower jaw is carefully repositioned backward to correct a bite where the lower jaw sits too far forward.',
+        recovery: '6–8 weeks',
+        whatToExpect: 'Similar to jaw advancement — soft foods early on, with swelling improving steadily over 6–8 weeks.',
+    },
+    maxillary_advancement: {
+        whatItIs: 'Your upper jaw is moved forward to correct a recessed midface and improve your profile and bite together.',
+        recovery: '8–10 weeks',
+        whatToExpect: 'A longer recovery than chin or lower-jaw procedures, with swelling around the cheeks and upper lip that improves over 8–10 weeks.',
+    },
+    maxillary_impaction: {
+        whatItIs: 'Your upper jaw is moved upward to reduce a "gummy smile" and shorten an overly long lower face.',
+        recovery: '6–8 weeks',
+        whatToExpect: 'Noticeable improvement in smile appearance once swelling resolves, typically over 6–8 weeks.',
+    },
+    maxillary_down_graft: {
+        whatItIs: 'Your upper jaw is lengthened with a small bone graft to correct a short upper lip and improve your smile.',
+        recovery: '8–10 weeks',
+        whatToExpect: 'A bit more healing time since a graft is involved, with steady improvement over 8–10 weeks.',
+    },
+    transverse_expansion: {
+        whatItIs: 'A device gently widens a narrow upper jaw over time (SARPE), which can\'t be achieved with braces alone once you\'re fully grown.',
+        recovery: '4–6 months (expansion period)',
+        whatToExpect: 'A gradual process — you\'ll turn a small expander a little each day, with final results visible over a few months.',
+    },
+    double_jaw_correction: {
+        whatItIs: 'Both your upper and lower jaws are repositioned together (bimaxillary surgery) for cases where one jaw alone wouldn\'t fully correct your bite and profile.',
+        recovery: '10–12 weeks',
+        whatToExpect: 'The most involved of these procedures, with a longer initial recovery — most people feel mostly back to normal by 10–12 weeks.',
+    },
+};
+
+/**
+ * Returns a plain-language explanation of a procedure for the Patient View.
+ * Falls back to a generic message if the id isn't recognised.
+ */
+export function getPatientFriendlyInfo(procedureId) {
+    return PATIENT_FRIENDLY_INFO[procedureId] || {
+        whatItIs: 'Your doctor has recorded a recommendation for your case. Ask your doctor for full details about what this involves.',
+        recovery: 'Varies — ask your doctor',
+        whatToExpect: 'Your doctor will walk you through exactly what to expect for your specific plan.',
+    };
+}
+
 export const DEFAULT_PROCEDURE_ID = 'mandibular_advancement';
 
 export function getProcedurePreset(procedureId) {
     return PROCEDURE_PRESETS.find(preset => preset.id === procedureId) ?? PROCEDURE_PRESETS[0];
+}
+
+// ── Ensemble (ML + rule engine) procedure name → simulation preset id ──────
+// The ML model classifies into 8 broad classes (see python/label_map.json);
+// the simulator works off the more granular PROCEDURE_PRESETS below. Where a
+// class covers a combination (e.g. "BSSO + Genioplasty") or has no direction
+// implied (e.g. "Genioplasty Only"), this maps to the closest single preset —
+// the primary jaw movement is applied; review/adjust before relying on this
+// for combination cases.
+const ML_LABEL_TO_PRESET_ID = {
+    'no surgery required': null,
+    'bsso advancement (class ii)': 'mandibular_advancement',
+    'bsso setback (class iii)': 'mandibular_setback',
+    'bsso advancement + genioplasty': 'mandibular_advancement',
+    'bsso setback + genioplasty': 'mandibular_setback',
+    'le fort i + bsso (bimaxillary)': 'double_jaw_correction',
+    'genioplasty only': 'chin_advancement',
+    'golden ratio optimization': null,
+};
+
+/**
+ * Resolves a Procedure Recommendation label (from the ML model, the rule
+ * engine, or a "top3" alternative) to a PROCEDURE_PRESETS id that can be
+ * passed into buildProcedureSimulationLandmarks / setSelectedProcedureId.
+ * Returns null when there's no surgical preset to apply (e.g. "No Surgery
+ * Required" or "Golden Ratio Optimization", which isn't a jaw movement).
+ */
+export function mapRecommendationToPresetId(procedureLabel) {
+    if (!procedureLabel) return null;
+    const key = procedureLabel.trim().toLowerCase();
+    if (key in ML_LABEL_TO_PRESET_ID) return ML_LABEL_TO_PRESET_ID[key];
+
+    // Fallback: try to match directly against a preset's own label/id
+    const directMatch = PROCEDURE_PRESETS.find(
+        p => p.label.toLowerCase() === key || p.id === key
+    );
+    return directMatch?.id ?? null;
 }
 
 function pointSide(point, centerX) {
