@@ -1262,8 +1262,9 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 }}>
                     {simulationResult && (
                         <div style={{
-                            flex: '1 1 0',
+                            flex: '0 1 auto',
                             height: '100%',
+                            maxHeight: 'calc(100vh - 220px)',
                             minWidth: 0,
                             display: 'flex',
                             flexDirection: 'column',
@@ -1310,7 +1311,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                         </div>
                     )}
                     <div style={{
-                        flex: simulationResult ? '1 1 0' : '0 1 auto',
+                        flex: '0 1 auto',
                         height: '100%',
                         maxHeight: 'calc(100vh - 220px)',
                         minHeight: 0,
