@@ -563,7 +563,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         if (!canvasRef.current || canvasRef.current.clientWidth === 0) return;
 
         const { x, y } = getMousePos(e);
-        let minDist = 12 * (canvasRef.current.width / canvasRef.current.clientWidth); // Scale hit area
+        let minDist = 7 * (canvasRef.current.width / canvasRef.current.clientWidth); // Scale hit area
         let idx = -1;
 
         points.forEach((p, i) => {
@@ -1312,6 +1312,8 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                     <div style={{
                         flex: simulationResult ? '1 1 0' : '0 1 auto',
                         height: '100%',
+                        maxHeight: 'calc(100vh - 220px)',
+                        minHeight: 0,
                         minWidth: 0,
                         display: 'flex',
                         alignItems: 'center',
@@ -1320,7 +1322,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                         background: '#000',
                         border: simulationResult ? '1px solid var(--border-subtle)' : 'none',
                         borderRadius: simulationResult ? '10px' : 0,
-                        overflow: simulationResult ? 'hidden' : 'visible'
+                        overflow: 'hidden'
                     }}>
                         {rangeWarning && (
                             <div style={{
@@ -1371,9 +1373,10 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                             onMouseUp={handleMouseUp}
                             onMouseLeave={handleMouseUp}
                             style={{
-                                height: '100%',
-                                width: 'auto',
+                                maxHeight: '100%',
                                 maxWidth: '100%',
+                                width: 'auto',
+                                height: 'auto',
                                 objectFit: 'contain',
                                 boxShadow: '0 20px 50px -12px rgba(0, 0, 0, 0.5)',
                                 cursor: (isSimulating || simulationResult) ? 'default' : draggingIdx !== null ? 'grabbing' : 'grab',
