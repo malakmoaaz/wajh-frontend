@@ -52,10 +52,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // REFS
     // ========================================
 
-    /** Canvas element reference for rendering */
     const canvasRef = useRef(null);
-
-    /** AI service instance for outcome generation */
     const aiServiceRef = useRef(null);
     if (!aiServiceRef.current) {
         aiServiceRef.current = new AIService();
@@ -65,46 +62,27 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // STATE: Landmark Management
     // ========================================
 
-    /** Current positions of facial landmarks (modified by user) */
     const [points, setPoints] = useState([]);
     const [meshPoints, setMeshPoints] = useState([]);
-
-    /** Index of landmark currently being dragged (-1 if none) */
     const [draggingIdx, setDraggingIdx] = useState(null);
-
-    /** Warning message shown when a landmark hits its movement limit */
     const [rangeWarning, setRangeWarning] = useState(null);
-
-    /** Loaded image object for rendering */
     const [imgObj, setImgObj] = useState(null);
 
     // ========================================
     // STATE: AI Simulation
     // ========================================
 
-    /** Whether simulation is currently processing */
     const [isSimulating, setIsSimulating] = useState(false);
-
-    /** Generated outcome image (ImageBitmap) */
     const [simulationResult, setSimulationResult] = useState(null);
-
-    /** Currently active/hovered landmark index */
     const [activePointIdx, setActivePointIdx] = useState(null);
 
     // ========================================
     // STATE: Calibration
     // ========================================
 
-    /** Whether image has been calibrated */
     const [isCalibrated, setIsCalibrated] = useState(false);
-
-    /** Calibration data: {ratio: px/mm, method: string, confidence: string} */
     const [calibrationData, setCalibrationData] = useState(null);
-
-    /** Whether calibration modal is visible */
     const [showCalibration, setShowCalibration] = useState(false);
-
-    /** Simulation confidence score (50-95%) */
     const [simulationConfidence, setSimulationConfidence] = useState(null);
     const [simulationConfidenceDetails, setSimulationConfidenceDetails] = useState(null);
     const [is3DPanelOpen, setIs3DPanelOpen] = useState(true);
@@ -114,7 +92,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
 
     // ── Save to Patient Record ──────────────────────────────────
     const [showSavePanel, setShowSavePanel] = useState(false);
-    const [savePatientMode, setSavePatientMode] = useState('new'); // 'new' | 'existing'
+    const [savePatientMode, setSavePatientMode] = useState('new');
     const [doctorPatients, setDoctorPatients] = useState([]);
     const [selectedPatientId, setSelectedPatientId] = useState('');
     const [newPatientFirstName, setNewPatientFirstName] = useState('');
@@ -135,7 +113,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     const [isAnalyzing,       setIsAnalyzing]       = useState(false);
     const [analysisError,     setAnalysisError]     = useState(null);
     const [showAiOverlay,     setShowAiOverlay]     = useState(true);
-
 
     // ── Procedure clinical explanations ───────────────────────────
     const PROCEDURE_INFO = {
@@ -207,8 +184,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // ── Golden Ratio state ─────────────────────────────────────
     const [goldenRatioOn,     setGoldenRatioOn]     = useState(false);
     const [goldenRatioData,   setGoldenRatioData]   = useState(null);
-    // 'reference' = informational overlay only; 'choice' = lets the user apply
-    // the suggested φ correction directly to the relevant landmark(s)
     const [goldenRatioPresentationMode, setGoldenRatioPresentationMode] = useState('reference');
     const [isGoldenLoading,   setIsGoldenLoading]   = useState(false);
     const [showGoldenLines,   setShowGoldenLines]   = useState(true);
@@ -216,7 +191,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     const selectedProcedure = getProcedurePreset(selectedProcedureId);
 
     // ── Procedure Info Modal ───────────────────────────────────────
-    const [infoProcedure, setInfoProcedure] = useState(null); // procedure object to show in modal
+    const [infoProcedure, setInfoProcedure] = useState(null);
 
     // Cleanup Simulation Results to prevent memory leaks
     useEffect(() => {
@@ -230,15 +205,12 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // Load image
     useEffect(() => {
         if (!imageSrc) return;
-        console.log("WajhCanvas: Loading image source...");
         const img = new Image();
         img.onload = () => {
-            console.log("WajhCanvas: Image loaded successfully");
             setImgObj(img);
-            setShowCalibration(true); // Prompt calibration on load
+            setShowCalibration(true);
         };
         img.onerror = () => {
-            console.error("WajhCanvas: Failed to load image source");
             alert("Error loading image onto canvas. Please try again.");
         };
         img.src = imageSrc;
@@ -270,29 +242,18 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         const yNorm = y / imgObj.height;
         const zNorm = point.zNorm ?? ((point.zPx ?? point.z ?? 0) / imgObj.width);
         const zPx = zNorm * imgObj.width;
-
         return {
             ...point,
-            x,
-            y,
-            z: zPx,
-            xPx: x,
-            yPx: y,
-            zPx,
-            xNorm,
-            yNorm,
-            zNorm,
-            normX: xNorm,
-            normY: yNorm
+            x, y, z: zPx,
+            xPx: x, yPx: y, zPx,
+            xNorm, yNorm, zNorm,
+            normX: xNorm, normY: yNorm
         };
     }, [imgObj]);
 
     // ========================================
     // VALIDATION: Landmark Movement Range
     // ========================================
-    // Maximum allowed displacement from the originally detected position.
-    // This is a conservative placeholder bound (not a published clinical value) —
-    // validate/adjust against cephalometric movement norms for your defense.
     const MAX_LANDMARK_DISPLACEMENT_MM = 25;
     const rangeWarningTimeout = useRef(null);
 
@@ -302,30 +263,19 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         rangeWarningTimeout.current = setTimeout(() => setRangeWarning(null), 2600);
     }, []);
 
-    /**
-     * Clamps a proposed (x, y) position so the landmark cannot move further
-     * than MAX_LANDMARK_DISPLACEMENT_MM from where it was originally detected.
-     * Returns the (possibly clamped) coordinates and fires a warning if clamped.
-     */
     const clampToValidRange = useCallback((idx, x, y) => {
         const original = initialLandmarks?.[idx];
         if (!original) return { x, y };
-
         const mmPerPx = calibrationData?.ratio || 0.264583;
         const dxPx = x - original.x;
         const dyPx = y - original.y;
         const distPx = Math.hypot(dxPx, dyPx);
         const distMm = distPx * mmPerPx;
-
-        if (distMm <= MAX_LANDMARK_DISPLACEMENT_MM || distPx === 0) {
-            return { x, y };
-        }
-
+        if (distMm <= MAX_LANDMARK_DISPLACEMENT_MM || distPx === 0) return { x, y };
         const maxPx = MAX_LANDMARK_DISPLACEMENT_MM / mmPerPx;
         const scale = maxPx / distPx;
         const label = original.name || `Landmark ${idx + 1}`;
         showRangeWarning(`${label} limited to ${MAX_LANDMARK_DISPLACEMENT_MM}mm from its detected position — out of clinically valid range.`);
-
         return { x: original.x + dxPx * scale, y: original.y + dyPx * scale };
     }, [initialLandmarks, calibrationData, showRangeWarning]);
 
@@ -336,69 +286,40 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // ========================================
     // RENDERING: Canvas Draw Loop
     // ========================================
-
-    /**
-     * Main canvas rendering function
-     * 
-     * Handles three view modes:
-     * 1. Editing mode: Show original image with interactive landmarks
-     * 2. Result mode: Show simulated outcome (no landmarks)
-     * 3. Review mode: Show simulated outcome in the main canvas
-     * 
-     * Rendering logic:
-     * - If simulation exists → Show result
-     * - Otherwise → Show original with landmarks
-     */
     const draw = useCallback(() => {
         try {
             const canvas = canvasRef.current;
             if (!canvas || !imgObj) return;
             const ctx = canvas.getContext('2d');
-
-            // Match canvas resolution to image
             if (canvas.width !== imgObj.width) canvas.width = imgObj.width;
             if (canvas.height !== imgObj.height) canvas.height = imgObj.height;
-
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // LOGIC:
-            // 1. If we have a simulation result, show RESULT
-            // 2. If NO simulation result (Editing phase):
-            //    - Show ORIGINAL always
 
             let toDraw = imgObj;
             let isResultView = false;
-
             if (simulationResult) {
                 toDraw = simulationResult;
                 isResultView = true;
             }
 
-            // Draw Base Image
             ctx.drawImage(toDraw, 0, 0);
 
-            // Draw Landmarks / Controls
             if (!isResultView) {
                 points.forEach((p, i) => {
                     const isDragging = i === draggingIdx;
                     const isActive = i === activePointIdx;
-
                     const size = isActive || isDragging ? 5 : 3;
                     const original = initialLandmarks[i];
                     const hasMoved = original && Math.hypot(p.x - original.x, p.y - original.y) > 1;
                     const color = isActive || isDragging
                         ? '#22d3ee'
-                        : hasMoved
-                            ? '#f97316'
-                            : 'rgba(34, 211, 238, 0.8)';
+                        : hasMoved ? '#f97316' : 'rgba(34, 211, 238, 0.8)';
 
-                    // 1. Subtle Outer Glow for active/dragging points
                     if (isActive || isDragging) {
                         ctx.shadowBlur = 10;
                         ctx.shadowColor = 'rgba(34, 211, 238, 0.6)';
                     }
 
-                    // 2. Draw Cross Marker (White Backdrop for contrast)
                     ctx.beginPath();
                     ctx.lineWidth = size + 1;
                     ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
@@ -407,7 +328,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                     ctx.moveTo(p.x + size, p.y - size); ctx.lineTo(p.x - size, p.y + size);
                     ctx.stroke();
 
-                    // 3. Draw Main Cross
                     ctx.beginPath();
                     ctx.lineWidth = size - 1;
                     ctx.strokeStyle = '#ffffff';
@@ -416,7 +336,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                     ctx.moveTo(p.x + size, p.y - size); ctx.lineTo(p.x - size, p.y + size);
                     ctx.stroke();
 
-                    // 4. Draw Core Color Line
                     ctx.beginPath();
                     ctx.lineWidth = size / 2;
                     ctx.strokeStyle = color;
@@ -425,15 +344,11 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                     ctx.moveTo(p.x + size, p.y - size); ctx.lineTo(p.x - size, p.y + size);
                     ctx.stroke();
 
-                    // 5. Center Dot
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 1.5, 0, 2 * Math.PI);
                     ctx.fillStyle = isActive || isDragging ? '#ffffff' : color;
                     ctx.fill();
 
-                    // 6. Contour halo — only drawn around landmarks that changed,
-                    // so the user can see at a glance which ones were edited
-                    // without re-rendering/highlighting all 45 points.
                     if (hasMoved && !isActive && !isDragging) {
                         ctx.beginPath();
                         ctx.arc(p.x, p.y, size + 6, 0, 2 * Math.PI);
@@ -443,90 +358,81 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                         ctx.stroke();
                         ctx.setLineDash([]);
                     }
-
-                    // Reset shadow
                     ctx.shadowBlur = 0;
                 });
 
-                // ── AI Target Overlay (amber diamonds) ────────────────
+                // ── AI Target Overlay ────────────────
                 if (showAiOverlay && analysis?.targetLandmarks?.length) {
                     analysis.targetLandmarks.forEach(t => {
                         if (!t.x || !t.y) return;
                         const r = 5;
                         ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(251,191,36,0.7)';
                         ctx.beginPath();
-                        ctx.moveTo(t.x,t.y-r); ctx.lineTo(t.x+r,t.y);
-                        ctx.lineTo(t.x,t.y+r); ctx.lineTo(t.x-r,t.y);
+                        ctx.moveTo(t.x, t.y - r); ctx.lineTo(t.x + r, t.y);
+                        ctx.lineTo(t.x, t.y + r); ctx.lineTo(t.x - r, t.y);
                         ctx.closePath();
-                        ctx.strokeStyle='#fbbf24'; ctx.lineWidth=1.5; ctx.stroke();
-                        ctx.fillStyle='rgba(251,191,36,0.18)'; ctx.fill();
-                        const orig = points.find(p => p.id===t.id);
-                        if (orig && Math.hypot(t.x-orig.x,t.y-orig.y)>4) {
-                            ctx.beginPath(); ctx.moveTo(orig.x,orig.y); ctx.lineTo(t.x,t.y);
-                            ctx.strokeStyle='rgba(251,191,36,0.4)'; ctx.lineWidth=1;
-                            ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+                        ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1.5; ctx.stroke();
+                        ctx.fillStyle = 'rgba(251,191,36,0.18)'; ctx.fill();
+                        const orig = points.find(p => p.id === t.id);
+                        if (orig && Math.hypot(t.x - orig.x, t.y - orig.y) > 4) {
+                            ctx.beginPath(); ctx.moveTo(orig.x, orig.y); ctx.lineTo(t.x, t.y);
+                            ctx.strokeStyle = 'rgba(251,191,36,0.4)'; ctx.lineWidth = 1;
+                            ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
                         }
-                        ctx.shadowBlur=0;
+                        ctx.shadowBlur = 0;
                     });
                 }
 
                 // ── Golden Ratio Lines Overlay ─────────────────────────
                 if (showGoldenLines && goldenRatioData && !goldenRatioData.error) {
-                    const getP = id => points.find(p=>p.id===id);
-                    const nasion=getP('nasion'), subnasale=getP('subnasale'),
-                          gnathion=getP('gnathion'), gonL=getP('gonion_l'),
-                          gonR=getP('gonion_r'), zygL=getP('zygion_l'), zygR=getP('zygion_r');
+                    const getP = id => points.find(p => p.id === id);
+                    const nasion = getP('nasion'), subnasale = getP('subnasale'),
+                          gnathion = getP('gnathion'), gonL = getP('gonion_l'),
+                          gonR = getP('gonion_r'), zygL = getP('zygion_l'), zygR = getP('zygion_r');
                     ctx.save();
-                    ctx.setLineDash([5,3]);
-                    ctx.lineWidth=1.2;
+                    ctx.setLineDash([5, 3]);
+                    ctx.lineWidth = 1.2;
 
-                    // Upper face line (nasion)
                     if (nasion) {
-                        ctx.strokeStyle='rgba(251,191,36,0.6)';
-                        ctx.beginPath(); ctx.moveTo(nasion.x-35,nasion.y); ctx.lineTo(nasion.x+35,nasion.y); ctx.stroke();
+                        ctx.strokeStyle = 'rgba(251,191,36,0.6)';
+                        ctx.beginPath(); ctx.moveTo(nasion.x - 35, nasion.y); ctx.lineTo(nasion.x + 35, nasion.y); ctx.stroke();
                         ctx.setLineDash([]);
-                        ctx.fillStyle='rgba(251,191,36,0.8)'; ctx.font='bold 9px sans-serif';
-                        ctx.fillText('Nasion',nasion.x+38,nasion.y+3);
-                        ctx.setLineDash([5,3]);
+                        ctx.fillStyle = 'rgba(251,191,36,0.8)'; ctx.font = 'bold 9px sans-serif';
+                        ctx.fillText('Nasion', nasion.x + 38, nasion.y + 3);
+                        ctx.setLineDash([5, 3]);
                     }
-                    // Mid face line (subnasale)
                     if (subnasale) {
-                        ctx.strokeStyle='rgba(251,191,36,0.6)';
-                        ctx.beginPath(); ctx.moveTo(subnasale.x-35,subnasale.y); ctx.lineTo(subnasale.x+35,subnasale.y); ctx.stroke();
+                        ctx.strokeStyle = 'rgba(251,191,36,0.6)';
+                        ctx.beginPath(); ctx.moveTo(subnasale.x - 35, subnasale.y); ctx.lineTo(subnasale.x + 35, subnasale.y); ctx.stroke();
                         ctx.setLineDash([]);
-                        ctx.fillStyle='rgba(251,191,36,0.8)';
-                        ctx.fillText('Subnasale',subnasale.x+38,subnasale.y+3);
-                        ctx.setLineDash([5,3]);
+                        ctx.fillStyle = 'rgba(251,191,36,0.8)';
+                        ctx.fillText('Subnasale', subnasale.x + 38, subnasale.y + 3);
+                        ctx.setLineDash([5, 3]);
                     }
-                    // Lower face line (gnathion)
                     if (gnathion) {
-                        ctx.strokeStyle='rgba(52,211,153,0.6)';
-                        ctx.beginPath(); ctx.moveTo(gnathion.x-35,gnathion.y); ctx.lineTo(gnathion.x+35,gnathion.y); ctx.stroke();
+                        ctx.strokeStyle = 'rgba(52,211,153,0.6)';
+                        ctx.beginPath(); ctx.moveTo(gnathion.x - 35, gnathion.y); ctx.lineTo(gnathion.x + 35, gnathion.y); ctx.stroke();
                         ctx.setLineDash([]);
-                        ctx.fillStyle='rgba(52,211,153,0.8)';
-                        ctx.fillText('Gnathion',gnathion.x+38,gnathion.y+3);
-                        ctx.setLineDash([5,3]);
+                        ctx.fillStyle = 'rgba(52,211,153,0.8)';
+                        ctx.fillText('Gnathion', gnathion.x + 38, gnathion.y + 3);
+                        ctx.setLineDash([5, 3]);
                     }
-                    // Face width lines
                     if (zygL && zygR) {
-                        ctx.strokeStyle='rgba(251,191,36,0.5)';
-                        ctx.beginPath(); ctx.moveTo(zygL.x,zygL.y); ctx.lineTo(zygR.x,zygR.y); ctx.stroke();
+                        ctx.strokeStyle = 'rgba(251,191,36,0.5)';
+                        ctx.beginPath(); ctx.moveTo(zygL.x, zygL.y); ctx.lineTo(zygR.x, zygR.y); ctx.stroke();
                     }
                     if (gonL && gonR) {
-                        ctx.strokeStyle='rgba(52,211,153,0.5)';
-                        ctx.beginPath(); ctx.moveTo(gonL.x,gonL.y); ctx.lineTo(gonR.x,gonR.y); ctx.stroke();
+                        ctx.strokeStyle = 'rgba(52,211,153,0.5)';
+                        ctx.beginPath(); ctx.moveTo(gonL.x, gonL.y); ctx.lineTo(gonR.x, gonR.y); ctx.stroke();
                     }
-                    // φ symbol in corner
                     ctx.setLineDash([]);
-                    ctx.fillStyle='rgba(251,191,36,0.5)'; ctx.font='bold 12px serif';
-                    ctx.fillText('φ = 1.618',8,16);
+                    ctx.fillStyle = 'rgba(251,191,36,0.5)'; ctx.font = 'bold 12px serif';
+                    ctx.fillText('φ = 1.618', 8, 16);
                     ctx.restore();
                 }
             }
         } catch (e) {
             console.error("WajhCanvas: Draw loop error", e);
-            // We don't want to crash the loop forever, but maybe pause it?
-            // For now, just logging to see if this is the cause.
         }
     }, [imgObj, points, initialLandmarks, simulationResult, draggingIdx, activePointIdx, showAiOverlay, analysis, showGoldenLines, goldenRatioData]);
 
@@ -537,11 +443,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // ========================================
     // INTERACTION: Mouse Event Handlers
     // ========================================
-
-    /**
-     * Convert mouse event to canvas coordinates
-     * Accounts for canvas scaling and positioning
-     */
     const getMousePos = (e) => {
         const rect = canvasRef.current.getBoundingClientRect();
         const scaleX = canvasRef.current.width / rect.width;
@@ -552,50 +453,30 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         };
     };
 
-    /**
-     * Handle mouse down - Start dragging landmark
-     * 
-     * Finds the nearest landmark within hit radius and begins drag operation.
-     * Disabled during result view to prevent accidental modifications.
-     */
     const handleMouseDown = (e) => {
-        if (isSimulating || simulationResult) return; // Disable interaction on result view
+        if (isSimulating || simulationResult) return;
         if (!canvasRef.current || canvasRef.current.clientWidth === 0) return;
-
         const { x, y } = getMousePos(e);
-        let minDist = 7 * (canvasRef.current.width / canvasRef.current.clientWidth); // Scale hit area
+        let minDist = 7 * (canvasRef.current.width / canvasRef.current.clientWidth);
         let idx = -1;
-
         points.forEach((p, i) => {
             const dist = Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2);
-            if (dist < minDist) {
-                minDist = dist;
-                idx = i;
-            }
+            if (dist < minDist) { minDist = dist; idx = i; }
         });
-
-        if (idx !== -1) {
-            setDraggingIdx(idx);
-            setActivePointIdx(idx);
-        }
+        if (idx !== -1) { setDraggingIdx(idx); setActivePointIdx(idx); }
     };
 
-    /**
-     * Handle mouse move - Update dragged landmark position
-     */
     const handleMouseMove = (e) => {
         if (isSimulating) return;
         if (draggingIdx === null) return;
         const raw = getMousePos(e);
         const { x, y } = clampToValidRange(draggingIdx, raw.x, raw.y);
         const activePoint = points[draggingIdx];
-
         setPoints(prev => {
             const next = [...prev];
             next[draggingIdx] = patchPoint3DFields(next[draggingIdx], x, y);
             return next;
         });
-
         setMeshPoints(prev => {
             if (!prev?.length) return prev;
             const next = [...prev];
@@ -607,22 +488,13 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         });
     };
 
-    /**
-     * Handle mouse up - End drag operation
-     */
-    const handleMouseUp = () => {
-        setDraggingIdx(null);
-    };
+    const handleMouseUp = () => { setDraggingIdx(null); };
 
-    // Keyboard listener for landmark movement
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (activePointIdx === null || isSimulating || simulationResult) return;
-
             const step = e.shiftKey ? 5 : 1;
-            let dx = 0;
-            let dy = 0;
-
+            let dx = 0, dy = 0;
             switch (e.key) {
                 case 'ArrowLeft': dx = -step; break;
                 case 'ArrowRight': dx = step; break;
@@ -630,18 +502,14 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 case 'ArrowDown': dy = step; break;
                 default: return;
             }
-
-            e.preventDefault(); // Prevent scrolling
-
+            e.preventDefault();
             setPoints(prev => {
                 const next = [...prev];
                 const p = next[activePointIdx];
                 const clamped = clampToValidRange(activePointIdx, p.x + dx, p.y + dy);
-                const movedPoint = patchPoint3DFields(p, clamped.x, clamped.y);
-                next[activePointIdx] = movedPoint;
+                next[activePointIdx] = patchPoint3DFields(p, clamped.x, clamped.y);
                 return next;
             });
-
             setMeshPoints(prev => {
                 if (!prev?.length) return prev;
                 const next = [...prev];
@@ -654,7 +522,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 return next;
             });
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [activePointIdx, isSimulating, simulationResult, patchPoint3DFields, points, clampToValidRange]);
@@ -662,21 +529,9 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // ========================================
     // HANDLERS: Simulation & Calibration
     // ========================================
-
-    /**
-     * Handle simulation execution
-     * 
-     * Process:
-     * 1. Validate image is loaded
-     * 2. Call AI service to generate outcome
-     * 3. Calculate confidence score
-     * 4. Update UI with result
-     */
     const handleSimulate = async (landmarkSet = points, procedureIdOverride = null) => {
         if (!imgObj) return;
-        if (landmarkSet && typeof landmarkSet.preventDefault === 'function') {
-            landmarkSet = points;
-        }
+        if (landmarkSet && typeof landmarkSet.preventDefault === 'function') landmarkSet = points;
         const activeProcedureId = procedureIdOverride ?? selectedProcedureId;
         const activeProcedure = procedureIdOverride ? getProcedurePreset(procedureIdOverride) : selectedProcedure;
         setIsSimulating(true);
@@ -689,47 +544,27 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         try {
             const originalPoints = initialLandmarks.map(p => ({ ...p }));
             const procedureTargets = buildProcedureSimulationLandmarks(
-                originalPoints,
-                landmarkSet,
-                activeProcedureId,
-                {
-                    intensity: procedureIntensity,
-                    width: imgObj.width,
-                    height: imgObj.height
-                }
+                originalPoints, landmarkSet, activeProcedureId,
+                { intensity: procedureIntensity, width: imgObj.width, height: imgObj.height }
             );
             const result = await aiServiceRef.current.generateOutcome(
-                imgObj,
-                originalPoints,
-                procedureTargets,
-                {
-                    procedureId: activeProcedureId,
-                    intensity: procedureIntensity
-                }
+                imgObj, originalPoints, procedureTargets,
+                { procedureId: activeProcedureId, intensity: procedureIntensity }
             );
             setSimulationResult(result);
             setShowComparisonSlider(true);
-
-            // Calculate and store confidence from the same service that generated the result.
             const confidence = Math.round(
                 aiServiceRef.current.computeConfidence(originalPoints, procedureTargets, { originalImage: imgObj }) * 100
             );
             const confidenceDetails = aiServiceRef.current.computeConfidenceDetails(
-                originalPoints,
-                procedureTargets,
-                { originalImage: imgObj }
+                originalPoints, procedureTargets, { originalImage: imgObj }
             );
             setSimulationConfidence(confidence);
             setSimulationConfidenceDetails(confidenceDetails);
-            console.log("Simulation confidence:", confidence + "%");
             setSimulationStatus(`Completed ${activeProcedure.label}.`);
-
-            // Fire AI analysis after warp completes (non-blocking)
             setIsAnalyzing(true);
             AnalysisService.analyze(
-                originalPoints,
-                procedureTargets,
-                calibrationData,
+                originalPoints, procedureTargets, calibrationData,
                 { width: imgObj.width, height: imgObj.height },
                 { goldenRatio: goldenRatioOn }
             ).then(result => {
@@ -738,7 +573,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             }).catch(err => {
                 setAnalysisError('AI analysis unavailable: ' + err.message);
             }).finally(() => setIsAnalyzing(false));
-
         } catch (error) {
             console.error("Simulation failed:", error);
             setSimulationError(error?.message || 'Simulation failed');
@@ -750,12 +584,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
 
     const [applyNotice, setApplyNotice] = useState(null);
 
-    /**
-     * Apply a recommended procedure (from the Procedure Recommendation panel,
-     * or one of its "Other possibilities" alternatives) straight to the
-     * simulation, instead of requiring the user to pick it from the preset
-     * list manually.
-     */
     const handleApplyRecommendation = (procedureLabel) => {
         const presetId = mapRecommendationToPresetId(procedureLabel);
         if (!presetId) {
@@ -767,17 +595,10 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         handleSimulate(points, presetId);
     };
 
-    /**
-     * Applies a golden-ratio deviation correction directly to the relevant
-     * landmark(s) — only meaningful in "choice" presentation mode. Reuses the
-     * same range clamp as manual dragging so this can't push a landmark past
-     * its valid movement limit either.
-     */
     const handleApplyGoldenRatioCorrection = (ratio) => {
         if (!ratio || ratio.within_norm) return;
         const mmPerPx = calibrationData?.ratio || 0.264583;
         const deltaPx = ratio.deviation_mm / mmPerPx;
-
         const movePoint = (id, dxPx, dyPx) => {
             const idx = points.findIndex(p => p.id === id);
             if (idx === -1) return;
@@ -789,7 +610,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 return next;
             });
         };
-
         if (ratio.label === 'Lower / Upper Face Height') {
             const movingUp = ratio.current > ratio.ideal;
             movePoint('gnathion', 0, movingUp ? -deltaPx : deltaPx);
@@ -799,7 +619,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             movePoint('gonion_l', moveInward ? half : -half, 0);
             movePoint('gonion_r', moveInward ? -half : half, 0);
         }
-
         setApplyNotice(`Applied φ correction for ${ratio.label}.`);
         setTimeout(() => setApplyNotice(null), 3000);
     };
@@ -811,26 +630,15 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             const list = await APIService.listPatients();
             setDoctorPatients(Array.isArray(list) ? list : []);
         } catch {
-            // Doctor Dashboard endpoints require a DOCTOR-role login; if this
-            // fails (e.g. logged in as PATIENT, or not authenticated) just
-            // leave the "existing patient" list empty — "new patient" still works.
             setDoctorPatients([]);
         }
     };
 
-    /**
-     * Saves the current simulation (landmarks, procedure, confidence, golden
-     * ratio data, ML recommendation, and a snapshot of the result image) as a
-     * Case + Simulation against a patient record — creating that patient
-     * first if needed. This is what makes the result visible later in the
-     * Patient View.
-     */
     const handleSaveToPatientRecord = async () => {
         setIsSavingCase(true);
         setSaveCaseStatus('');
         try {
             let patientId = selectedPatientId;
-
             if (savePatientMode === 'new') {
                 if (!newPatientFirstName || !newPatientLastName) {
                     setSaveCaseStatus('First and last name are required.');
@@ -843,7 +651,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                     notes: doctorNotesForPatient || undefined,
                 });
                 patientId = patient.id;
-
                 if (newPatientAccountEmail) {
                     await APIService.updatePatient(patientId, { patientAccountEmail: newPatientAccountEmail });
                 }
@@ -854,20 +661,17 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             } else if (doctorNotesForPatient) {
                 await APIService.updatePatient(patientId, { notes: doctorNotesForPatient });
             }
-
             const newCase = await APIService.createCase(patientId, {
                 title: selectedProcedure?.label || 'Maxillofacial Planning Case',
                 notes: doctorNotesForPatient || undefined,
                 calibration: calibrationData || undefined,
             });
-
             let resultImageData = null;
             try {
                 resultImageData = canvasRef.current?.toDataURL('image/jpeg', 0.85) || null;
             } catch {
-                resultImageData = null; // canvas may be tainted in rare cross-origin cases
+                resultImageData = null;
             }
-
             await APIService.createSimulation(newCase.id, {
                 surgeryName: selectedProcedure?.label,
                 confidence: simulationConfidence,
@@ -879,7 +683,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 mlProcedure: analysis?.procedure,
                 mlConfidence: analysis?.confidencePct,
             });
-
             setSaveCaseStatus('Saved — visible in the Doctor Dashboard and (if linked) the Patient View.');
         } catch (err) {
             setSaveCaseStatus(err.message || 'Failed to save to patient record.');
@@ -933,9 +736,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 ? patchPoint3DFields(newPoint, clamped.x, clamped.y)
                 : point
         );
-
         setPoints(updatedPoints);
-
         setMeshPoints(prev => {
             if (!prev?.length) return prev;
             const next = [...prev];
@@ -948,23 +749,12 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         });
     };
 
-    /**
-     * Handle calibration confirmation
-     * 
-     * Stores calibration data and enables simulation features.
-     * 
-     * @param {Object} data - Calibration data {ratio, method, confidence}
-     */
     const handleCalibrationConfirm = (data) => {
         setCalibrationData(data);
         setIsCalibrated(true);
         setShowCalibration(false);
     };
 
-    /**
-     * Handle PDF export
-     * Collects all simulation data and triggers PDF download.
-     */
     const [isExporting, setIsExporting] = useState(false);
 
     const handleExportPDF = async () => {
@@ -973,23 +763,13 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         try {
             const originalPoints = initialLandmarks.map(p => ({ ...p }));
             const procedureTargets = buildProcedureSimulationLandmarks(
-                originalPoints,
-                points,
-                selectedProcedureId,
-                {
-                    intensity: procedureIntensity,
-                    width: imgObj.width,
-                    height: imgObj.height
-                }
+                originalPoints, points, selectedProcedureId,
+                { intensity: procedureIntensity, width: imgObj.width, height: imgObj.height }
             );
             await generateReport({
-                simulationResult,
-                originalImage: imgObj,
-                initialLandmarks: originalPoints,
-                currentPoints: procedureTargets,
-                calibrationData,
-                simulationConfidence,
-                procedureLabel: selectedProcedure.label
+                simulationResult, originalImage: imgObj,
+                initialLandmarks: originalPoints, currentPoints: procedureTargets,
+                calibrationData, simulationConfidence, procedureLabel: selectedProcedure.label
             });
         } catch (err) {
             console.error('PDF export failed:', err);
@@ -999,20 +779,14 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         }
     };
 
-    const confidenceLevel = simulationConfidence === null
-        ? null
-        : simulationConfidence > 80
-            ? 'HIGH'
-            : simulationConfidence >= 60
-                ? 'MEDIUM'
-                : 'LOW';
+    const confidenceLevel = simulationConfidence === null ? null
+        : simulationConfidence > 80 ? 'HIGH'
+        : simulationConfidence >= 60 ? 'MEDIUM' : 'LOW';
 
-    const confidenceColor = confidenceLevel === 'HIGH'
-        ? 'var(--success)'
-        : confidenceLevel === 'MEDIUM'
-            ? '#facc15'
-            : '#ef4444';
+    const confidenceColor = confidenceLevel === 'HIGH' ? 'var(--success)'
+        : confidenceLevel === 'MEDIUM' ? '#facc15' : '#ef4444';
 
+    // ── Shared style tokens ────────────────────────────────────
     const sectionStyle = {
         background: 'rgba(255, 255, 255, 0.03)',
         border: '1px solid var(--border-subtle)',
@@ -1045,15 +819,9 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
 
     const procedurePreviewTargets = imgObj
         ? buildProcedureSimulationLandmarks(
-            initialLandmarks,
-            points,
-            selectedProcedureId,
-            {
-                intensity: procedureIntensity,
-                width: imgObj.width,
-                height: imgObj.height
-            }
-        )
+            initialLandmarks, points, selectedProcedureId,
+            { intensity: procedureIntensity, width: imgObj.width, height: imgObj.height }
+          )
         : points;
 
     const changedProcedurePoints = procedurePreviewTargets.filter((point, index) => {
@@ -1068,56 +836,55 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             const ys = changedProcedurePoints.map(point => point.y);
             const padX = imgObj.width * 0.045;
             const padY = imgObj.height * 0.045;
-            const left = Math.max(0, Math.min(...xs) - padX);
-            const top = Math.max(0, Math.min(...ys) - padY);
-            const right = Math.min(imgObj.width, Math.max(...xs) + padX);
+            const left  = Math.max(0, Math.min(...xs) - padX);
+            const top   = Math.max(0, Math.min(...ys) - padY);
+            const right  = Math.min(imgObj.width,  Math.max(...xs) + padX);
             const bottom = Math.min(imgObj.height, Math.max(...ys) + padY);
-
             return {
-                left: `${(left / imgObj.width) * 100}%`,
-                top: `${(top / imgObj.height) * 100}%`,
-                width: `${((right - left) / imgObj.width) * 100}%`,
-                height: `${((bottom - top) / imgObj.height) * 100}%`
+                left:   `${(left  / imgObj.width)  * 100}%`,
+                top:    `${(top   / imgObj.height) * 100}%`,
+                width:  `${((right  - left) / imgObj.width)  * 100}%`,
+                height: `${((bottom - top)  / imgObj.height) * 100}%`
             };
         })()
         : null;
 
     const confidenceFactorRows = simulationConfidenceDetails
         ? [
-            ['Image quality', simulationConfidenceDetails.factors.imageQuality],
-            ['Face pose', simulationConfidenceDetails.factors.facePose],
-            ['Movement scope', simulationConfidenceDetails.factors.movementScope],
-            ['Detection quality', simulationConfidenceDetails.factors.detectionQuality]
-        ]
+            ['Image quality',      simulationConfidenceDetails.factors.imageQuality],
+            ['Face pose',          simulationConfidenceDetails.factors.facePose],
+            ['Movement scope',     simulationConfidenceDetails.factors.movementScope],
+            ['Detection quality',  simulationConfidenceDetails.factors.detectionQuality]
+          ]
         : [];
 
     const procedureCatalog = PROCEDURE_PRESETS.reduce((catalog, procedure) => {
         const existing = catalog.find(item => item.category === procedure.category);
-        if (existing) {
-            existing.items.push(procedure.catalogLabel || procedure.label);
-        } else {
-            catalog.push({
-                category: procedure.category,
-                items: [procedure.catalogLabel || procedure.label]
-            });
-        }
+        if (existing) existing.items.push(procedure.catalogLabel || procedure.label);
+        else catalog.push({ category: procedure.category, items: [procedure.catalogLabel || procedure.label] });
         return catalog;
     }, []);
 
+    // ========================================
+    // RENDER
+    // ========================================
     return (
         <div className="wajh-canvas-container" style={{
             position: 'relative',
-            height: '100%',
+            height: '100vh',          /* ← concrete unit so children can resolve % heights */
+            minHeight: 0,             /* ← lets flex children shrink below natural size */
             width: '100%',
             display: 'flex',
             flexDirection: 'row',
-            alignItems: 'stretch', // Full height
+            alignItems: 'stretch',
             justifyContent: 'center',
             gap: '2rem',
             padding: '2rem',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            boxSizing: 'border-box'
         }}>
-            {/* LEFT COLUMN: Inputs & Readout */}
+
+            {/* ── LEFT COLUMN: Inputs & Readout ───────────────────── */}
             <div className="glass-panel" style={{
                 flex: '0 0 450px',
                 display: 'flex',
@@ -1157,101 +924,91 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 <div style={sectionStyle}>
                     <h4 style={sectionTitleStyle}>Calibration</h4>
                     <p style={helperTextStyle}>Set image scale before surgical measurement and simulation.</p>
-                {!isCalibrated && (
-                    <div style={{
-                        padding: '15px',
-                        background: 'var(--warning-glow)',
-                        color: 'var(--warning)',
-                        borderRadius: '8px',
-                        border: '1px solid var(--warning)',
-                        fontSize: '0.875rem',
-                        backdropFilter: 'blur(4px)'
-                    }}>
-                        ⚠ Calibration Required
-                        <button
-                            onClick={() => setShowCalibration(true)}
-                            style={{
-                                display: 'block',
-                                marginTop: '10px',
-                                padding: '12px 16px',
-                                background: 'var(--warning)',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontWeight: '700',
-                                width: '100%',
-                                color: '#fff',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em',
-                                fontSize: '0.75rem',
-                                transition: 'all var(--transition-fast)',
-                                boxShadow: '0 4px 12px var(--warning-glow)'
-                            }}
-                            onMouseEnter={(e) => e.target.style.opacity = '0.8'}
-                            onMouseLeave={(e) => e.target.style.opacity = '1'}
-                        >
-                            Calibrate Image
-                        </button>
-                    </div>
-                )}
-
-                {isCalibrated && (
-                    <div style={{ fontSize: '0.8rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '10px', fontWeight: 600 }}>
-                        Calibrated ({calibrationData?.method})
-                        <button onClick={() => setShowCalibration(true)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.75rem', transition: 'color var(--transition-fast)' }} onMouseEnter={(e) => e.target.style.color = 'var(--text-main)'} onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}>
-                            Recalibrate
-                        </button>
-                    </div>
-                )}
+                    {!isCalibrated && (
+                        <div style={{
+                            padding: '15px',
+                            background: 'var(--warning-glow)',
+                            color: 'var(--warning)',
+                            borderRadius: '8px',
+                            border: '1px solid var(--warning)',
+                            fontSize: '0.875rem',
+                            backdropFilter: 'blur(4px)'
+                        }}>
+                            ⚠ Calibration Required
+                            <button
+                                onClick={() => setShowCalibration(true)}
+                                style={{
+                                    display: 'block', marginTop: '10px', padding: '12px 16px',
+                                    background: 'var(--warning)', border: 'none', borderRadius: '6px',
+                                    cursor: 'pointer', fontWeight: '700', width: '100%', color: '#fff',
+                                    textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem',
+                                    transition: 'all var(--transition-fast)', boxShadow: '0 4px 12px var(--warning-glow)'
+                                }}
+                                onMouseEnter={(e) => e.target.style.opacity = '0.8'}
+                                onMouseLeave={(e) => e.target.style.opacity = '1'}
+                            >
+                                Calibrate Image
+                            </button>
+                        </div>
+                    )}
+                    {isCalibrated && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '10px', fontWeight: 600 }}>
+                            Calibrated ({calibrationData?.method})
+                            <button
+                                onClick={() => setShowCalibration(true)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.75rem', transition: 'color var(--transition-fast)' }}
+                                onMouseEnter={(e) => e.target.style.color = 'var(--text-main)'}
+                                onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}
+                            >
+                                Recalibrate
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* CENTER COLUMN: Patient Image / Before-After Review */}
+            {/* ── CENTER COLUMN: Canvas ────────────────────────────── */}
             <div style={{
-                flex: '2',
+                flex: '1 1 0',        /* ← was flex:'2'; explicit shrink basis prevents collapse */
+                minHeight: 0,         /* ← critical: lets the column shrink inside the flex row */
+                minWidth: 0,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '15px'
+                gap: '15px',
+                overflow: 'hidden'
             }}>
+                {/* Before/After header bar */}
                 {simulationResult && (
                     <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '12px',
-                        padding: '12px 14px',
+                        flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        gap: '12px', padding: '12px 14px',
                         background: 'rgba(20, 24, 32, 0.72)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: '10px',
-                        color: 'var(--text-main)',
-                        backdropFilter: 'blur(10px)'
+                        border: '1px solid var(--border-subtle)', borderRadius: '10px',
+                        color: 'var(--text-main)', backdropFilter: 'blur(10px)'
                     }}>
                         <div>
-                            <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>
-                                Before / After Review
-                            </div>
+                            <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>Before / After Review</div>
                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                                 Left panel is the original. Right panel is the simulation with the draggable overlay slider.
                             </div>
                         </div>
                         {simulationConfidence && (
-                            <div style={{
-                                flex: '0 0 auto',
-                                color: confidenceColor,
-                                fontSize: '0.85rem',
-                                fontWeight: 800
-                            }}>
+                            <div style={{ flex: '0 0 auto', color: confidenceColor, fontSize: '0.85rem', fontWeight: 800 }}>
                                 {confidenceLevel} {simulationConfidence}% confidence
                             </div>
                         )}
                     </div>
                 )}
+
+                {/* Main image area — grows to fill remaining column height */}
                 <div style={{
-                    flex: '1',
+                    flex: '1 1 0',        /* ← fills all remaining vertical space */
+                    minHeight: '400px',   /* ← floor so it never collapses to zero */
                     display: 'flex',
                     gap: simulationResult ? '14px' : '0',
                     justifyContent: 'center',
-                    alignItems: 'center',
+                    alignItems: 'stretch',
                     position: 'relative',
                     background: '#000',
                     borderRadius: '12px',
@@ -1260,12 +1017,12 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                     border: '1px solid var(--border-subtle)',
                     padding: simulationResult ? '14px' : 0
                 }}>
+                    {/* Before panel */}
                     {simulationResult && (
                         <div style={{
-                            flex: '0 1 auto',
-                            height: '100%',
-                            maxHeight: 'calc(100vh - 220px)',
+                            flex: '1 1 0',    /* ← equal share of the row */
                             minWidth: 0,
+                            minHeight: 0,
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
@@ -1277,20 +1034,12 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                             overflow: 'hidden'
                         }}>
                             <div style={{
-                                position: 'absolute',
-                                top: '12px',
-                                left: '12px',
-                                zIndex: 1,
-                                padding: '6px 10px',
-                                borderRadius: '999px',
+                                position: 'absolute', top: '12px', left: '12px', zIndex: 1,
+                                padding: '6px 10px', borderRadius: '999px',
                                 background: 'rgba(10, 12, 16, 0.72)',
                                 border: '1px solid var(--border-medium)',
-                                color: 'var(--text-main)',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                letterSpacing: '0.06em',
-                                textTransform: 'uppercase',
-                                backdropFilter: 'blur(8px)'
+                                color: 'var(--text-main)', fontSize: '0.72rem', fontWeight: 700,
+                                letterSpacing: '0.06em', textTransform: 'uppercase', backdropFilter: 'blur(8px)'
                             }}>
                                 Before
                             </div>
@@ -1298,24 +1047,21 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                 src={imageSrc}
                                 alt="Original patient before simulation"
                                 style={{
-                                    height: 'auto',
-                                    width: 'auto',
-                                    maxWidth: '100%',
-                                    maxHeight: '100%',
-                                    objectFit: 'contain',
-                                    boxShadow: '0 20px 50px -12px rgba(0, 0, 0, 0.5)',
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'contain',   /* ← fills panel, letterboxes correctly */
                                     filter: isSimulating ? 'blur(3px) grayscale(40%)' : 'none',
                                     transition: 'filter var(--transition-normal)'
                                 }}
                             />
                         </div>
                     )}
+
+                    {/* After / editing canvas panel */}
                     <div style={{
-                        flex: '0 1 auto',
-                        height: '100%',
-                        maxHeight: 'calc(100vh - 220px)',
-                        minHeight: 0,
+                        flex: '1 1 0',    /* ← equal share; was 'flex: 0 1 auto' which could shrink to 0 */
                         minWidth: 0,
+                        minHeight: 0,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1325,48 +1071,37 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                         borderRadius: simulationResult ? '10px' : 0,
                         overflow: 'hidden'
                     }}>
+                        {/* Range warning toast */}
                         {rangeWarning && (
                             <div style={{
-                                position: 'absolute',
-                                top: '12px',
-                                left: '50%',
-                                transform: 'translateX(-50%)',
-                                zIndex: 6,
-                                maxWidth: '88%',
-                                padding: '8px 14px',
-                                borderRadius: '8px',
+                                position: 'absolute', top: '12px', left: '50%',
+                                transform: 'translateX(-50%)', zIndex: 6, maxWidth: '88%',
+                                padding: '8px 14px', borderRadius: '8px',
                                 background: 'rgba(248,113,113,0.14)',
                                 border: '1px solid rgba(248,113,113,0.45)',
-                                color: '#fca5a5',
-                                fontSize: '0.74rem',
-                                fontWeight: 600,
-                                textAlign: 'center',
-                                backdropFilter: 'blur(8px)',
+                                color: '#fca5a5', fontSize: '0.74rem', fontWeight: 600,
+                                textAlign: 'center', backdropFilter: 'blur(8px)',
                                 boxShadow: '0 4px 16px rgba(0,0,0,0.35)'
                             }}>
                                 ⚠ {rangeWarning}
                             </div>
                         )}
+
+                        {/* After label */}
                         {simulationResult && (
                             <div style={{
-                                position: 'absolute',
-                                top: '12px',
-                                left: '12px',
-                                zIndex: 1,
-                                padding: '6px 10px',
-                                borderRadius: '999px',
+                                position: 'absolute', top: '12px', left: '12px', zIndex: 1,
+                                padding: '6px 10px', borderRadius: '999px',
                                 background: 'rgba(10, 12, 16, 0.72)',
                                 border: '1px solid var(--border-medium)',
-                                color: 'var(--text-main)',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                letterSpacing: '0.06em',
-                                textTransform: 'uppercase',
-                                backdropFilter: 'blur(8px)'
+                                color: 'var(--text-main)', fontSize: '0.72rem', fontWeight: 700,
+                                letterSpacing: '0.06em', textTransform: 'uppercase', backdropFilter: 'blur(8px)'
                             }}>
                                 After
                             </div>
                         )}
+
+                        {/* ── THE CANVAS ── */}
                         <canvas
                             ref={canvasRef}
                             onMouseDown={handleMouseDown}
@@ -1374,70 +1109,56 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                             onMouseUp={handleMouseUp}
                             onMouseLeave={handleMouseUp}
                             style={{
-                                maxHeight: '100%',
+                                display: 'block',
                                 maxWidth: '100%',
+                                maxHeight: '100%',
                                 width: 'auto',
                                 height: 'auto',
                                 objectFit: 'contain',
-                                boxShadow: '0 20px 50px -12px rgba(0, 0, 0, 0.5)',
-                                cursor: (isSimulating || simulationResult) ? 'default' : draggingIdx !== null ? 'grabbing' : 'grab',
-                                transition: 'filter var(--transition-normal)',
-                                filter: isSimulating ? 'blur(3px) grayscale(40%)' : 'none'
+                                cursor: (isSimulating || simulationResult)
+                                    ? 'default'
+                                    : draggingIdx !== null ? 'grabbing' : 'grab',
+                                filter: isSimulating ? 'blur(3px) grayscale(40%)' : 'none',
+                                transition: 'filter var(--transition-normal)'
                             }}
                         />
+
+                        {/* Comparison overlays */}
                         {simulationResult && showComparisonSlider && (
                             <>
                                 <div style={{
-                                    position: 'absolute',
-                                    top: '48px',
-                                    left: '12px',
-                                    zIndex: 2,
-                                    padding: '5px 8px',
-                                    borderRadius: '999px',
+                                    position: 'absolute', top: '48px', left: '12px', zIndex: 2,
+                                    padding: '5px 8px', borderRadius: '999px',
                                     background: 'rgba(10, 12, 16, 0.72)',
                                     border: '1px solid var(--border-medium)',
-                                    color: 'var(--text-main)',
-                                    fontSize: '0.68rem',
-                                    fontWeight: 800,
-                                    letterSpacing: '0.05em',
-                                    textTransform: 'uppercase',
-                                    backdropFilter: 'blur(8px)',
-                                    pointerEvents: 'none'
+                                    color: 'var(--text-main)', fontSize: '0.68rem', fontWeight: 800,
+                                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                                    backdropFilter: 'blur(8px)', pointerEvents: 'none'
                                 }}>
-                                    {comparisonMode === 'difference' ? 'Difference overlay' : comparisonMode === 'region' ? 'Region focus' : 'Before overlay'}
+                                    {comparisonMode === 'difference' ? 'Difference overlay'
+                                        : comparisonMode === 'region' ? 'Region focus' : 'Before overlay'}
                                 </div>
                                 <div style={{
-                                    position: 'absolute',
-                                    top: '48px',
-                                    right: '12px',
-                                    zIndex: 2,
-                                    padding: '5px 8px',
-                                    borderRadius: '999px',
+                                    position: 'absolute', top: '48px', right: '12px', zIndex: 2,
+                                    padding: '5px 8px', borderRadius: '999px',
                                     background: 'rgba(10, 12, 16, 0.72)',
                                     border: '1px solid var(--border-medium)',
-                                    color: 'var(--text-main)',
-                                    fontSize: '0.68rem',
-                                    fontWeight: 800,
-                                    letterSpacing: '0.05em',
-                                    textTransform: 'uppercase',
-                                    backdropFilter: 'blur(8px)',
-                                    pointerEvents: 'none'
+                                    color: 'var(--text-main)', fontSize: '0.68rem', fontWeight: 800,
+                                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                                    backdropFilter: 'blur(8px)', pointerEvents: 'none'
                                 }}>
                                     After
                                 </div>
+
                                 {(comparisonMode === 'split' || comparisonMode === 'difference') && (
                                     <img
                                         src={imageSrc}
                                         alt="Original patient comparison overlay"
                                         style={{
-                                            position: 'absolute',
-                                            inset: 0,
-                                            height: '100%',
-                                            width: '100%',
+                                            position: 'absolute', inset: 0, height: '100%', width: '100%',
                                             objectFit: 'contain',
                                             clipPath: comparisonMode === 'split'
-                                                ? `inset(0 ${100 - comparisonSplit}% 0 0)`
-                                                : 'none',
+                                                ? `inset(0 ${100 - comparisonSplit}% 0 0)` : 'none',
                                             mixBlendMode: comparisonMode === 'difference' ? 'difference' : 'normal',
                                             opacity: comparisonMode === 'difference' ? 0.72 : 1,
                                             filter: comparisonMode === 'difference' ? 'saturate(1.25) contrast(1.15)' : 'none',
@@ -1446,1245 +1167,847 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                         }}
                                     />
                                 )}
+
                                 {comparisonMode === 'difference' && (
                                     <div style={{
-                                        position: 'absolute',
-                                        inset: 0,
+                                        position: 'absolute', inset: 0,
                                         background: 'rgba(14, 165, 233, 0.12)',
-                                        mixBlendMode: 'screen',
-                                        pointerEvents: 'none'
+                                        mixBlendMode: 'screen', pointerEvents: 'none'
                                     }} />
                                 )}
+
                                 {comparisonMode === 'region' && regionHighlightBox && (
                                     <>
+                                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0, 0, 0, 0.42)', pointerEvents: 'none' }} />
                                         <div style={{
-                                            position: 'absolute',
-                                            inset: 0,
-                                            background: 'rgba(0, 0, 0, 0.42)',
-                                            pointerEvents: 'none'
-                                        }} />
-                                        <div style={{
-                                            position: 'absolute',
-                                            ...regionHighlightBox,
+                                            position: 'absolute', ...regionHighlightBox,
                                             border: '2px solid rgba(14, 165, 233, 0.95)',
                                             boxShadow: '0 0 0 999px rgba(0, 0, 0, 0.12), 0 0 22px rgba(14, 165, 233, 0.65)',
-                                            borderRadius: '10px',
-                                            pointerEvents: 'none'
+                                            borderRadius: '10px', pointerEvents: 'none'
                                         }} />
                                     </>
                                 )}
+
                                 {comparisonMode === 'split' && (
                                     <>
                                         <div style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            bottom: 0,
-                                            left: `${comparisonSplit}%`,
-                                            width: '2px',
+                                            position: 'absolute', top: 0, bottom: 0,
+                                            left: `${comparisonSplit}%`, width: '2px',
                                             transform: 'translateX(-1px)',
                                             background: 'rgba(255,255,255,0.85)',
                                             boxShadow: '0 0 16px rgba(14, 165, 233, 0.8)',
                                             pointerEvents: 'none'
                                         }} />
                                         <div style={{
-                                            position: 'absolute',
-                                            left: `${comparisonSplit}%`,
-                                            top: '50%',
+                                            position: 'absolute', left: `${comparisonSplit}%`, top: '50%',
                                             transform: 'translate(-50%, -50%)',
-                                            width: '34px',
-                                            height: '34px',
-                                            borderRadius: '999px',
+                                            width: '34px', height: '34px', borderRadius: '999px',
                                             background: 'rgba(10, 12, 16, 0.78)',
                                             border: '1px solid rgba(255,255,255,0.55)',
-                                            color: '#fff',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '0.8rem',
-                                            fontWeight: 800,
-                                            pointerEvents: 'none',
-                                            backdropFilter: 'blur(8px)'
+                                            color: '#fff', display: 'flex', alignItems: 'center',
+                                            justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800,
+                                            pointerEvents: 'none', backdropFilter: 'blur(8px)'
                                         }}>
                                             ||
                                         </div>
                                         <input
-                                            type="range"
-                                            min="0"
-                                            max="100"
-                                            value={comparisonSplit}
+                                            type="range" min="0" max="100" value={comparisonSplit}
                                             aria-label="Before after comparison split"
                                             onChange={(e) => setComparisonSplit(Number(e.target.value))}
                                             style={{
-                                                position: 'absolute',
-                                                left: '24px',
-                                                right: '24px',
-                                                bottom: '18px',
-                                                width: 'calc(100% - 48px)',
-                                                accentColor: 'var(--primary)',
-                                                cursor: 'ew-resize'
+                                                position: 'absolute', left: '24px', right: '24px',
+                                                bottom: '18px', width: 'calc(100% - 48px)',
+                                                accentColor: 'var(--primary)', cursor: 'ew-resize'
                                             }}
                                         />
                                     </>
                                 )}
                             </>
                         )}
+
+                        {/* Simulating spinner overlay */}
+                        {isSimulating && (
+                            <div style={{
+                                position: 'absolute', inset: 0, zIndex: 5,
+                                display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center', gap: '12px',
+                                background: 'rgba(0, 0, 0, 0.48)', color: 'var(--text-main)',
+                                backdropFilter: 'blur(4px)', pointerEvents: 'auto'
+                            }}>
+                                <div className="spinner"></div>
+                                <strong>Analyzing face...</strong>
+                            </div>
+                        )}
+
+                        {!imgObj && (
+                            <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>Loading Canvas...</p>
+                        )}
                     </div>
-                    {isSimulating && (
-                        <div style={{
-                            position: 'absolute',
-                            inset: 0,
-                            zIndex: 5,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '12px',
-                            background: 'rgba(0, 0, 0, 0.48)',
-                            color: 'var(--text-main)',
-                            backdropFilter: 'blur(4px)',
-                            pointerEvents: 'auto'
-                        }}>
-                            <div className="spinner"></div>
-                            <strong>Analyzing face...</strong>
-                        </div>
-                    )}
-                    {!imgObj && <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>Loading Canvas...</p>}
                 </div>
 
-                {/* Clinical Disclaimer Overlay - Now below canvas */}
+                {/* Clinical disclaimer */}
                 <div style={{
-                    background: 'rgba(20, 20, 20, 0.4)',
-                    color: 'rgba(255, 255, 255, 0.3)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    fontSize: '0.55rem',
-                    textAlign: 'center',
-                    border: '1px solid rgba(255,255,255,0.03)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    width: '100%',
-                    backdropFilter: 'blur(4px)'
+                    flexShrink: 0,
+                    background: 'rgba(20, 20, 20, 0.4)', color: 'rgba(255, 255, 255, 0.3)',
+                    padding: '8px 16px', borderRadius: '8px', fontSize: '0.55rem',
+                    textAlign: 'center', border: '1px solid rgba(255,255,255,0.03)',
+                    textTransform: 'uppercase', letterSpacing: '0.08em',
+                    width: '100%', backdropFilter: 'blur(4px)'
                 }}>
                     ⚠ Clinical Planning Aid Only. Not for direct surgical guidance
                 </div>
             </div>
 
-            {/* RIGHT COLUMN: Actions & Simulation Status */}
+            {/* ── RIGHT COLUMN: Actions & Simulation Status ───────── */}
             <div style={{
-                flex: '1',
+                flex: '0 0 300px',    /* ← fixed width, no longer competes for space */
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '20px',
                 justifyContent: 'flex-start',
                 alignItems: 'stretch',
-                maxWidth: '300px',
-                paddingTop: '20px',
                 maxHeight: '100%',
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 paddingRight: '4px'
             }}>
                 <div style={sectionStyle}>
-                    <h3 style={{ ...sectionTitleStyle, fontSize: '0.9rem' }}>
-                        Simulation
-                    </h3>
-                    <p style={helperTextStyle}>
-                        Generate, compare, and export the predicted surgical outcome.
-                    </p>
+                    <h3 style={{ ...sectionTitleStyle, fontSize: '0.9rem' }}>Simulation</h3>
+                    <p style={helperTextStyle}>Generate, compare, and export the predicted surgical outcome.</p>
 
+                    {/* Procedure Catalog */}
                     <div style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '7px',
-                        marginBottom: '12px',
-                        padding: '10px',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-subtle)',
-                        background: 'rgba(255, 255, 255, 0.02)'
+                        display: 'flex', flexDirection: 'column', gap: '7px',
+                        marginBottom: '12px', padding: '10px', borderRadius: '8px',
+                        border: '1px solid var(--border-subtle)', background: 'rgba(255, 255, 255, 0.02)'
                     }}>
-                        <div style={{ ...sectionTitleStyle, margin: 0, fontSize: '0.72rem' }}>
-                            Procedure Catalog
-                        </div>
+                        <div style={{ ...sectionTitleStyle, margin: 0, fontSize: '0.72rem' }}>Procedure Catalog</div>
                         {procedureCatalog.map(group => (
-                            <div
-                                key={group.category}
-                                style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '70px 1fr',
-                                    gap: '8px',
-                                    alignItems: 'start',
-                                    fontSize: '0.68rem',
-                                    lineHeight: 1.35
-                                }}
-                            >
-                                <span style={{ color: 'var(--primary)', fontWeight: 800 }}>
-                                    {group.category}
-                                </span>
-                                <span style={{ color: 'var(--text-muted)' }}>
-                                    {group.items.join(', ')}
-                                </span>
+                            <div key={group.category} style={{
+                                display: 'grid', gridTemplateColumns: '70px 1fr',
+                                gap: '8px', alignItems: 'start',
+                                fontSize: '0.68rem', lineHeight: 1.35
+                            }}>
+                                <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{group.category}</span>
+                                <span style={{ color: 'var(--text-muted)' }}>{group.items.join(', ')}</span>
                             </div>
                         ))}
                     </div>
 
-                {isCalibrated && !simulationResult ? (
-                    // Editing Mode Actions
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
-                        <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '10px',
-                            padding: '12px',
-                            borderRadius: '10px',
-                            border: '1px solid var(--border-subtle)',
-                            background: 'rgba(255, 255, 255, 0.02)'
-                        }}>
+                    {isCalibrated && !simulationResult ? (
+                        // ── Editing Mode Actions ──
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
                             <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'baseline',
-                                gap: '8px'
+                                display: 'flex', flexDirection: 'column', gap: '10px',
+                                padding: '12px', borderRadius: '10px',
+                                border: '1px solid var(--border-subtle)', background: 'rgba(255, 255, 255, 0.02)'
                             }}>
-                                <span style={{ ...sectionTitleStyle, margin: 0, fontSize: '0.74rem' }}>
-                                    Procedure Preset
-                                </span>
-                                <span style={{ color: 'var(--text-dim)', fontSize: '0.68rem' }}>
-                                    Orthognathic plan
-                                </span>
-                            </div>
-
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                                gap: '8px'
-                            }}>
-                                {PROCEDURE_PRESETS.map((procedure) => {
-                                    const isSelected = procedure.id === selectedProcedureId;
-                                    return (
-                                        <div key={procedure.id} style={{ position: 'relative' }}>
-                                            <button
-                                                type="button"
-                                                onClick={() => setSelectedProcedureId(procedure.id)}
-                                                style={{
-                                                    textAlign: 'left',
-                                                    padding: '10px 28px 9px 10px',
-                                                    borderRadius: '8px',
-                                                    border: isSelected
-                                                        ? '1px solid var(--primary)'
-                                                        : '1px solid var(--border-medium)',
-                                                    background: isSelected
-                                                        ? 'rgba(14, 165, 233, 0.16)'
-                                                        : 'rgba(255, 255, 255, 0.03)',
-                                                    color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
-                                                    cursor: 'pointer',
-                                                    transition: 'all var(--transition-fast)',
-                                                    minHeight: '64px',
-                                                    width: '100%'
-                                                }}
-                                            >
-                                                <div style={{ fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.2 }}>
-                                                    {procedure.label}
-                                                </div>
-                                                <div style={{ fontSize: '0.64rem', marginTop: '4px', opacity: 0.8, lineHeight: 1.25 }}>
-                                                    {procedure.category}
-                                                </div>
-                                            </button>
-                                            {/* Info button */}
-                                            <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); setInfoProcedure(procedure); }}
-                                                title="Learn about this procedure"
-                                                style={{
-                                                    position: 'absolute', top: 6, right: 6,
-                                                    width: 20, height: 20, borderRadius: '50%',
-                                                    border: '1px solid rgba(255,255,255,0.2)',
-                                                    background: 'rgba(255,255,255,0.06)',
-                                                    color: 'rgba(255,255,255,0.5)',
-                                                    cursor: 'pointer', fontSize: '0.65rem',
-                                                    fontWeight: 700, display: 'flex',
-                                                    alignItems: 'center', justifyContent: 'center',
-                                                    lineHeight: 1, padding: 0
-                                                }}
-                                            >
-                                                i
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            <div style={{
-                                borderTop: '1px solid var(--border-subtle)',
-                                paddingTop: '10px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px'
-                            }}>
-                                <div style={{ color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 700 }}>
-                                    {selectedProcedure.label}
-                                </div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', lineHeight: 1.45 }}>
-                                    {selectedProcedure.summary}
-                                </div>
-                                <div style={{ color: 'var(--text-dim)', fontSize: '0.68rem', lineHeight: 1.45 }}>
-                                    {selectedProcedure.pattern}
-                                </div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
-                                    {selectedProcedure.affectedRegions?.map(region => (
-                                        <span
-                                            key={region}
-                                            style={{
-                                                padding: '4px 7px',
-                                                borderRadius: '999px',
-                                                border: '1px solid var(--border-medium)',
-                                                color: 'var(--text-muted)',
-                                                fontSize: '0.62rem',
-                                                fontWeight: 700
-                                            }}
-                                        >
-                                            {region}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    color: 'var(--text-muted)',
-                                    fontSize: '0.72rem'
-                                }}>
-                                    <span>Simulation strength</span>
-                                    <span>{procedureIntensity.toFixed(2)}x</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min="0.75"
-                                    max="1.5"
-                                    step="0.05"
-                                    value={procedureIntensity}
-                                onChange={(e) => setProcedureIntensity(Number(e.target.value))}
-                                    style={{
-                                        width: '100%',
-                                        accentColor: 'var(--primary)',
-                                        cursor: 'ew-resize'
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <button
-                            className="btn-primary-gradient"
-                            type="button"
-                            onClick={() => handleSimulate()}
-                            disabled={isSimulating}
-                            style={{
-                                padding: '20px',
-                                fontSize: '1.05rem',
-                                borderRadius: '12px',
-                                border: 'none',
-                                color: '#fff',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                opacity: isSimulating ? 0.7 : 1,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '10px',
-                                width: '100%'
-                            }}
-                        >
-                            {isSimulating
-                                ? `Simulating ${selectedProcedure.label}...`
-                                : `Simulate ${selectedProcedure.label}`}
-                        </button>
-
-                        {!hasLandmarkEdits && (
-                            <div style={{
-                                padding: '10px 12px',
-                                borderRadius: '8px',
-                                border: '1px solid rgba(14, 165, 233, 0.35)',
-                                background: 'rgba(14, 165, 233, 0.08)',
-                                color: 'var(--text-main)',
-                                fontSize: '0.76rem',
-                                lineHeight: 1.4
-                            }}>
-                                The selected procedure will still produce an outcome even before manual edits.
-                            </div>
-                        )}
-
-                        {(simulationStatus || simulationError) && (
-                            <div style={{
-                                padding: '10px 12px',
-                                borderRadius: '8px',
-                                border: simulationError
-                                    ? '1px solid rgba(239, 68, 68, 0.45)'
-                                    : '1px solid rgba(34, 197, 94, 0.35)',
-                                background: simulationError
-                                    ? 'rgba(239, 68, 68, 0.08)'
-                                    : 'rgba(34, 197, 94, 0.08)',
-                                color: simulationError ? '#fca5a5' : '#86efac',
-                                fontSize: '0.76rem',
-                                lineHeight: 1.45
-                            }}>
-                                {simulationError || simulationStatus}
-                            </div>
-                        )}
-
-                        <button
-                            type="button"
-                            onClick={handleResetLandmarks}
-                            disabled={isSimulating}
-                            style={{
-                                padding: '12px',
-                                fontSize: '0.875rem',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-medium)',
-                                background: 'var(--bg-surface)',
-                                color: 'var(--text-main)',
-                                cursor: 'pointer',
-                                opacity: isSimulating ? 0.5 : 1,
-                                transition: 'all var(--transition-fast)'
-                            }}
-                            onMouseEnter={(e) => !isSimulating && (e.target.style.background = 'var(--bg-elevated)')}
-                            onMouseLeave={(e) => !isSimulating && (e.target.style.background = 'var(--bg-surface)')}
-                            >
-                                Reset Landmarks
-                        </button>
-                    </div>
-                ) : simulationResult ? (
-                    // Result Mode Actions
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
-                        <div style={{
-                            padding: '15px',
-                            background: 'var(--success-glow)',
-                            border: '1px solid var(--success)',
-                            borderRadius: '8px',
-                            color: 'var(--success)',
-                            textAlign: 'center',
-                            backdropFilter: 'blur(4px)',
-                            fontWeight: 600
-                        }}>
-                            <strong>Simulation Complete</strong>
-                        </div>
-
-                        {/* Confidence Meter */}
-                        {simulationConfidence && (
-                            <div style={{
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                border: '1px solid var(--border-subtle)',
-                                borderRadius: '8px',
-                                padding: '15px',
-                                backdropFilter: 'blur(4px)'
-                            }}>
-                                <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontWeight: 600 }}>Prediction Confidence</span>
-                                    <span style={{
-                                        fontSize: '1.125rem',
-                                        fontWeight: 'bold',
-                                        color: confidenceColor
-                                    }}>
-                                        {simulationConfidence}%
-                                    </span>
-                                </div>
-                                <div style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    marginBottom: '10px',
-                                    padding: '4px 8px',
-                                    borderRadius: '999px',
-                                    background: 'rgba(255,255,255,0.04)',
-                                    border: `1px solid ${confidenceColor}`,
-                                    color: confidenceColor,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 800
-                                }}>
-                                    {confidenceLevel}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
+                                    <span style={{ ...sectionTitleStyle, margin: 0, fontSize: '0.74rem' }}>Procedure Preset</span>
+                                    <span style={{ color: 'var(--text-dim)', fontSize: '0.68rem' }}>Orthognathic plan</span>
                                 </div>
 
-                                {/* Progress Bar */}
-                                <div style={{
-                                    width: '100%',
-                                    height: '8px',
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    borderRadius: '4px',
-                                    overflow: 'hidden',
-                                    position: 'relative'
-                                }}>
-                                    <div style={{
-                                        width: simulationConfidence + '%',
-                                        height: '100%',
-                                        background: confidenceLevel === 'HIGH'
-                                            ? 'linear-gradient(90deg, var(--success), #4ade80)'
-                                            : confidenceLevel === 'MEDIUM'
-                                                ? 'linear-gradient(90deg, #facc15, #fde047)'
-                                                : 'linear-gradient(90deg, #ef4444, #f87171)',
-                                        borderRadius: '4px',
-                                        transition: 'width 1s ease-out',
-                                        boxShadow: confidenceLevel === 'HIGH'
-                                            ? '0 0 10px rgba(34, 197, 94, 0.5)'
-                                            : confidenceLevel === 'MEDIUM'
-                                                ? '0 0 10px rgba(250, 204, 21, 0.5)'
-                                                : '0 0 10px rgba(239, 68, 68, 0.5)'
-                                    }} />
-                                </div>
-
-                                <div style={{ marginTop: '8px', fontSize: '0.75rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
-                                    Image quality, pose, movement scope, and {calibrationData?.confidence || 'Medium'} calibration accuracy
-                                </div>
-
-                                {confidenceFactorRows.length > 0 && (
-                                    <div style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '7px',
-                                        marginTop: '12px'
-                                    }}>
-                                        {confidenceFactorRows.map(([label, value]) => (
-                                            <div key={label} style={{ display: 'grid', gridTemplateColumns: '92px 1fr 34px', gap: '7px', alignItems: 'center' }}>
-                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>{label}</span>
-                                                <div style={{
-                                                    height: '5px',
-                                                    borderRadius: '999px',
-                                                    background: 'rgba(255,255,255,0.06)',
-                                                    overflow: 'hidden'
-                                                }}>
-                                                    <div style={{
-                                                        width: `${Math.round(value * 100)}%`,
-                                                        height: '100%',
-                                                        background: value >= 0.78
-                                                            ? 'var(--success)'
-                                                            : value >= 0.58
-                                                                ? '#facc15'
-                                                                : '#ef4444'
-                                                    }} />
-                                                </div>
-                                                <span style={{ color: 'var(--text-dim)', fontSize: '0.66rem', textAlign: 'right' }}>
-                                                    {Math.round(value * 100)}%
-                                                </span>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                                    {PROCEDURE_PRESETS.map((procedure) => {
+                                        const isSelected = procedure.id === selectedProcedureId;
+                                        return (
+                                            <div key={procedure.id} style={{ position: 'relative' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedProcedureId(procedure.id)}
+                                                    style={{
+                                                        textAlign: 'left', padding: '10px 28px 9px 10px',
+                                                        borderRadius: '8px',
+                                                        border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-medium)',
+                                                        background: isSelected ? 'rgba(14, 165, 233, 0.16)' : 'rgba(255, 255, 255, 0.03)',
+                                                        color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
+                                                        cursor: 'pointer', transition: 'all var(--transition-fast)',
+                                                        minHeight: '64px', width: '100%'
+                                                    }}
+                                                >
+                                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.2 }}>{procedure.label}</div>
+                                                    <div style={{ fontSize: '0.64rem', marginTop: '4px', opacity: 0.8, lineHeight: 1.25 }}>{procedure.category}</div>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); setInfoProcedure(procedure); }}
+                                                    title="Learn about this procedure"
+                                                    style={{
+                                                        position: 'absolute', top: 6, right: 6,
+                                                        width: 20, height: 20, borderRadius: '50%',
+                                                        border: '1px solid rgba(255,255,255,0.2)',
+                                                        background: 'rgba(255,255,255,0.06)',
+                                                        color: 'rgba(255,255,255,0.5)', cursor: 'pointer',
+                                                        fontSize: '0.65rem', fontWeight: 700,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        lineHeight: 1, padding: 0
+                                                    }}
+                                                >i</button>
                                             </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <div style={{ color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 700 }}>{selectedProcedure.label}</div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', lineHeight: 1.45 }}>{selectedProcedure.summary}</div>
+                                    <div style={{ color: 'var(--text-dim)', fontSize: '0.68rem', lineHeight: 1.45 }}>{selectedProcedure.pattern}</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
+                                        {selectedProcedure.affectedRegions?.map(region => (
+                                            <span key={region} style={{
+                                                padding: '4px 7px', borderRadius: '999px',
+                                                border: '1px solid var(--border-medium)',
+                                                color: 'var(--text-muted)', fontSize: '0.62rem', fontWeight: 700
+                                            }}>{region}</span>
                                         ))}
                                     </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                            gap: '8px'
-                        }}>
-                            {[
-                                ['split', 'Slider'],
-                                ['difference', 'Diff'],
-                                ['region', 'Region']
-                            ].map(([mode, label]) => (
-                                <button
-                                    key={mode}
-                                    type="button"
-                                    onClick={() => {
-                                        setComparisonMode(mode);
-                                        setShowComparisonSlider(true);
-                                    }}
-                                    style={{
-                                        padding: '10px 6px',
-                                        borderRadius: '8px',
-                                        border: comparisonMode === mode
-                                            ? '1px solid var(--primary)'
-                                            : '1px solid var(--border-medium)',
-                                        background: comparisonMode === mode
-                                            ? 'rgba(14, 165, 233, 0.18)'
-                                            : 'rgba(255, 255, 255, 0.03)',
-                                        color: comparisonMode === mode ? 'var(--text-main)' : 'var(--text-muted)',
-                                        cursor: 'pointer',
-                                        fontSize: '0.74rem',
-                                        fontWeight: 800
-                                    }}
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={() => setShowComparisonSlider(prev => !prev)}
-                            style={{
-                                padding: '12px',
-                                fontSize: '0.875rem',
-                                borderRadius: '8px',
-                                border: '1px solid var(--primary)',
-                                background: showComparisonSlider ? 'rgba(14, 165, 233, 0.22)' : 'rgba(14, 165, 233, 0.08)',
-                                color: 'var(--primary)',
-                                cursor: 'pointer',
-                                fontWeight: 700,
-                                transition: 'all var(--transition-fast)'
-                            }}
-                            title="Overlay original and simulated image with a draggable split."
-                        >
-                            {showComparisonSlider ? 'Overlay Slider: On' : 'Overlay Slider: Off'}
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={handleBeginAdjustment}
-                            style={{
-                                padding: '12px',
-                                fontSize: '0.875rem',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-medium)',
-                                background: 'var(--bg-surface)',
-                                color: 'var(--text-main)',
-                                cursor: 'pointer',
-                                transition: 'all var(--transition-fast)'
-                            }}
-                            onMouseEnter={(e) => e.target.style.background = 'var(--bg-elevated)'}
-                            onMouseLeave={(e) => e.target.style.background = 'var(--bg-surface)'}
-                        >
-                            Adjust Landmarks
-                        </button>
-
-                        {/* ── Golden Ratio Toggle ───────────────────────── */}
-                        <div style={{
-                            display:'flex', alignItems:'center', justifyContent:'space-between',
-                            padding:'12px 16px', borderRadius:'8px',
-                            background:'rgba(251,191,36,0.06)',
-                            border:'1px solid rgba(251,191,36,0.25)'
-                        }}>
-                            <div>
-                                <div style={{color:'#fbbf24',fontWeight:700,fontSize:'0.82rem'}}>
-                                    φ Golden Ratio Mode
                                 </div>
-                                <div style={{color:'var(--text-muted)',fontSize:'0.7rem',marginTop:2}}>
-                                    Measure face against φ = 1.618
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                                        <span>Simulation strength</span>
+                                        <span>{procedureIntensity.toFixed(2)}x</span>
+                                    </div>
+                                    <input
+                                        type="range" min="0.75" max="1.5" step="0.05" value={procedureIntensity}
+                                        onChange={(e) => setProcedureIntensity(Number(e.target.value))}
+                                        style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'ew-resize' }}
+                                    />
                                 </div>
                             </div>
+
                             <button
-                                onClick={() => setGoldenRatioOn(v => !v)}
+                                className="btn-primary-gradient"
+                                type="button"
+                                onClick={() => handleSimulate()}
+                                disabled={isSimulating}
                                 style={{
-                                    width:44, height:24, borderRadius:12, border:'none',
-                                    background: goldenRatioOn ? '#fbbf24' : 'var(--bg-elevated)',
-                                    cursor:'pointer', position:'relative', transition:'all 0.2s',
-                                    flexShrink:0
+                                    padding: '20px', fontSize: '1.05rem', borderRadius: '12px',
+                                    border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 'bold',
+                                    opacity: isSimulating ? 0.7 : 1,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    gap: '10px', width: '100%'
                                 }}
                             >
-                                <span style={{
-                                    position:'absolute', top:3,
-                                    left: goldenRatioOn ? 23 : 3,
-                                    width:18, height:18, borderRadius:'50%',
-                                    background:'white', transition:'left 0.2s',
-                                    display:'block'
-                                }}/>
+                                {isSimulating ? `Simulating ${selectedProcedure.label}...` : `Simulate ${selectedProcedure.label}`}
+                            </button>
+
+                            {!hasLandmarkEdits && (
+                                <div style={{
+                                    padding: '10px 12px', borderRadius: '8px',
+                                    border: '1px solid rgba(14, 165, 233, 0.35)',
+                                    background: 'rgba(14, 165, 233, 0.08)',
+                                    color: 'var(--text-main)', fontSize: '0.76rem', lineHeight: 1.4
+                                }}>
+                                    The selected procedure will still produce an outcome even before manual edits.
+                                </div>
+                            )}
+
+                            {(simulationStatus || simulationError) && (
+                                <div style={{
+                                    padding: '10px 12px', borderRadius: '8px',
+                                    border: simulationError ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(34, 197, 94, 0.35)',
+                                    background: simulationError ? 'rgba(239, 68, 68, 0.08)' : 'rgba(34, 197, 94, 0.08)',
+                                    color: simulationError ? '#fca5a5' : '#86efac',
+                                    fontSize: '0.76rem', lineHeight: 1.45
+                                }}>
+                                    {simulationError || simulationStatus}
+                                </div>
+                            )}
+
+                            <button
+                                type="button" onClick={handleResetLandmarks} disabled={isSimulating}
+                                style={{
+                                    padding: '12px', fontSize: '0.875rem', borderRadius: '8px',
+                                    border: '1px solid var(--border-medium)', background: 'var(--bg-surface)',
+                                    color: 'var(--text-main)', cursor: 'pointer',
+                                    opacity: isSimulating ? 0.5 : 1, transition: 'all var(--transition-fast)'
+                                }}
+                                onMouseEnter={(e) => !isSimulating && (e.target.style.background = 'var(--bg-elevated)')}
+                                onMouseLeave={(e) => !isSimulating && (e.target.style.background = 'var(--bg-surface)')}
+                            >
+                                Reset Landmarks
                             </button>
                         </div>
 
-                        {/* Standalone Golden Ratio button */}
-                        <button
-                            type="button"
-                            onClick={handleGoldenRatioOnly}
-                            disabled={isGoldenLoading}
-                            style={{
-                                padding:'11px 14px', fontSize:'0.82rem', borderRadius:'8px',
-                                border:'1px solid rgba(251,191,36,0.4)',
-                                background: isGoldenLoading ? 'rgba(251,191,36,0.05)' : 'rgba(251,191,36,0.1)',
-                                color:'#fbbf24', cursor: isGoldenLoading ? 'wait' : 'pointer',
-                                fontWeight:700, width:'100%',
-                                display:'flex', alignItems:'center', justifyContent:'center', gap:8
-                            }}
-                        >
-                            {isGoldenLoading ? 'Analysing...' : 'φ Analyse Golden Ratio Now'}
-                        </button>
-
-                        {/* ── Golden Ratio Results Panel ─────────────────────── */}
-                        {goldenRatioData && !goldenRatioData.error && (
+                    ) : simulationResult ? (
+                        // ── Result Mode Actions ──
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
                             <div style={{
-                                background:'rgba(251,191,36,0.04)',
-                                border:'1px solid rgba(251,191,36,0.3)',
-                                borderRadius:10, padding:16,
-                                display:'flex', flexDirection:'column', gap:12
+                                padding: '15px', background: 'var(--success-glow)',
+                                border: '1px solid var(--success)', borderRadius: '8px',
+                                color: 'var(--success)', textAlign: 'center',
+                                backdropFilter: 'blur(4px)', fontWeight: 600
                             }}>
-                                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                                    <h4 style={{color:'#fbbf24',margin:0,fontSize:'0.88rem',fontWeight:700}}>
-                                        φ Golden Ratio Analysis
-                                    </h4>
-                                    <button
-                                        onClick={() => setShowGoldenLines(v=>!v)}
-                                        style={{
-                                            fontSize:'0.68rem', padding:'3px 8px', borderRadius:4,
-                                            border:'1px solid rgba(251,191,36,0.4)',
-                                            background: showGoldenLines ? 'rgba(251,191,36,0.15)' : 'transparent',
-                                            color:'#fbbf24', cursor:'pointer', fontWeight:600
-                                        }}
-                                    >
-                                        {showGoldenLines ? '— Lines On' : '— Lines Off'}
-                                    </button>
-                                </div>
-
-                                {/* Reference (informational) vs Choice (apply corrections) mode */}
-                                <div style={{
-                                    display:'flex', gap:6, padding:3,
-                                    background:'rgba(0,0,0,0.25)', borderRadius:8,
-                                    border:'1px solid rgba(251,191,36,0.15)'
-                                }}>
-                                    {['reference', 'choice'].map(mode => (
-                                        <button
-                                            key={mode}
-                                            onClick={() => setGoldenRatioPresentationMode(mode)}
-                                            style={{
-                                                flex:1, padding:'6px 8px', borderRadius:6, border:'none',
-                                                background: goldenRatioPresentationMode === mode ? '#fbbf24' : 'transparent',
-                                                color: goldenRatioPresentationMode === mode ? '#1a1300' : 'var(--text-muted)',
-                                                fontSize:'0.7rem', fontWeight:700, cursor:'pointer'
-                                            }}
-                                        >
-                                            {mode === 'reference' ? 'Reference Only' : 'Choice — Apply'}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div style={{fontSize:'0.68rem', color:'var(--text-muted)', marginTop:-6, lineHeight:1.4}}>
-                                    {goldenRatioPresentationMode === 'reference'
-                                        ? 'Showing φ deviations as a passive reference — landmarks are not changed.'
-                                        : 'You can apply suggested φ corrections directly to the landmarks below.'}
-                                </div>
-
-                                {/* Harmony Score */}
-                                <div style={{
-                                    background:'rgba(251,191,36,0.08)', borderRadius:8,
-                                    padding:'10px 14px', display:'flex',
-                                    alignItems:'center', justifyContent:'space-between'
-                                }}>
-                                    <div>
-                                        <div style={{color:'var(--text-muted)',fontSize:'0.7rem',textTransform:'uppercase',letterSpacing:'0.07em'}}>
-                                            Harmony Score
-                                        </div>
-                                        <div style={{
-                                            color: goldenRatioData.harmonyScore >= 80 ? '#34d399'
-                                                : goldenRatioData.harmonyScore >= 60 ? '#fbbf24' : '#f87171',
-                                            fontWeight:700, fontSize:'1.6rem', fontFamily:'monospace'
-                                        }}>
-                                            {goldenRatioData.harmonyScore}
-                                            <span style={{fontSize:'0.8rem',fontWeight:400}}>/100</span>
-                                        </div>
-                                    </div>
-                                    <div style={{
-                                        fontSize:'0.72rem', color:'var(--text-muted)',
-                                        maxWidth:160, textAlign:'right', lineHeight:1.5
-                                    }}>
-                                        {goldenRatioData.overallAssessment}
-                                    </div>
-                                </div>
-
-                                {/* Ratio breakdown */}
-                                {Object.values(goldenRatioData.ratios || {}).map((r, i) => (
-                                    <div key={i} style={{
-                                        padding:'8px 12px', borderRadius:6,
-                                        background:'rgba(255,255,255,0.03)',
-                                        border:'1px solid rgba(255,255,255,0.06)'
-                                    }}>
-                                        <div style={{
-                                            display:'flex', justifyContent:'space-between',
-                                            alignItems:'center', marginBottom:6
-                                        }}>
-                                            <span style={{color:'var(--text-main)',fontSize:'0.78rem',fontWeight:500}}>
-                                                {r.label}
-                                            </span>
-                                            <span style={{
-                                                fontSize:'0.68rem', padding:'2px 7px', borderRadius:12,
-                                                background: r.within_norm ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
-                                                color: r.within_norm ? '#34d399' : '#f87171', fontWeight:600
-                                            }}>
-                                                {r.within_norm ? '✓ Within norm' : '⚠ Deviation'}
-                                            </span>
-                                        </div>
-                                        <div style={{display:'flex',gap:16,fontSize:'0.75rem'}}>
-                                            <span style={{color:'var(--text-muted)'}}>
-                                                Current: <b style={{color:'var(--text-main)'}}>{r.current}</b>
-                                            </span>
-                                            <span style={{color:'var(--text-muted)'}}>
-                                                Ideal φ: <b style={{color:'#fbbf24'}}>{r.ideal}</b>
-                                            </span>
-                                            <span style={{color:'var(--text-muted)'}}>
-                                                Δ: <b style={{color: r.within_norm ? '#34d399' : '#f87171'}}>
-                                                    {r.deviation_mm} mm
-                                                </b>
-                                            </span>
-                                        </div>
-                                        {!r.within_norm && (
-                                            <div style={{ marginTop:8 }}>
-                                                <div style={{
-                                                    fontSize:'0.72rem',
-                                                    color:'rgba(251,191,36,0.9)',
-                                                    fontWeight:600, marginBottom:4
-                                                }}>
-                                                    Required correction: {r.deviation_mm} mm
-                                                </div>
-                                                <div style={{
-                                                    fontSize:'0.7rem',
-                                                    color:'rgba(251,191,36,0.65)',
-                                                    lineHeight:1.5
-                                                }}>
-                                                    {r.label === 'Lower / Upper Face Height'
-                                                        ? `→ Move Gnathion and Menton ${r.deviation_mm}mm ${r.current > r.ideal ? 'superiorly (up)' : 'inferiorly (down)'} to reach φ ratio`
-                                                        : r.label === 'Jaw Width / Face Width'
-                                                        ? `→ Move Gonion Left and Gonion Right ${r.deviation_mm}mm ${r.current > r.ideal ? 'inward (medially)' : 'outward (laterally)'} to reach φ ratio`
-                                                        : `→ Adjust ${r.label} landmarks by ${r.deviation_mm}mm to reach φ ratio`
-                                                    }
-                                                </div>
-                                                {goldenRatioPresentationMode === 'choice' && (
-                                                    <button
-                                                        onClick={() => handleApplyGoldenRatioCorrection(r)}
-                                                        disabled={isSimulating}
-                                                        style={{
-                                                            marginTop:8, width:'100%',
-                                                            padding:'7px 10px', borderRadius:6,
-                                                            border:'1px solid rgba(251,191,36,0.4)',
-                                                            background:'rgba(251,191,36,0.12)',
-                                                            color:'#fbbf24', fontSize:'0.72rem', fontWeight:700,
-                                                            cursor: isSimulating ? 'not-allowed' : 'pointer'
-                                                        }}
-                                                    >
-                                                        ✓ Apply This Correction
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
+                                <strong>Simulation Complete</strong>
                             </div>
-                        )}
 
-                        {/* ── AI Procedure Recommendation Panel ──────────────── */}
-                        {(isAnalyzing || analysis || analysisError) && (
-                            <div style={{
-                                background:'rgba(56,189,248,0.04)',
-                                border:'1px solid rgba(56,189,248,0.25)',
-                                borderRadius:10, padding:16,
-                                display:'flex', flexDirection:'column', gap:12
-                            }}>
-                                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                                    <h4 style={{color:'#38bdf8',margin:0,fontSize:'0.88rem',fontWeight:700}}>
-                                        ⚕ Procedure Recommendation
-                                    </h4>
-                                    {analysis && (
-                                        <button
-                                            onClick={() => setShowAiOverlay(v=>!v)}
-                                            style={{
-                                                fontSize:'0.68rem', padding:'3px 8px', borderRadius:4,
-                                                border:'1px solid rgba(56,189,248,0.4)',
-                                                background: showAiOverlay ? 'rgba(56,189,248,0.15)' : 'transparent',
-                                                color:'#38bdf8', cursor:'pointer', fontWeight:600
-                                            }}
-                                        >
-                                            {showAiOverlay ? '◆ Overlay On' : '◇ Overlay Off'}
-                                        </button>
-                                    )}
-                                </div>
-
-                                {isAnalyzing && (
-                                    <div style={{color:'var(--text-muted)',fontSize:'0.8rem',display:'flex',gap:8,alignItems:'center'}}>
-                                        <span style={{
-                                            width:10,height:10,borderRadius:'50%',
-                                            border:'2px solid #38bdf8',borderTopColor:'transparent',
-                                            display:'inline-block',
-                                            animation:'spin 0.8s linear infinite'
-                                        }}/>
-                                        Analysing landmark movements...
+                            {/* Confidence Meter */}
+                            {simulationConfidence && (
+                                <div style={{
+                                    background: 'rgba(255, 255, 255, 0.03)',
+                                    border: '1px solid var(--border-subtle)',
+                                    borderRadius: '8px', padding: '15px', backdropFilter: 'blur(4px)'
+                                }}>
+                                    <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontWeight: 600 }}>Prediction Confidence</span>
+                                        <span style={{ fontSize: '1.125rem', fontWeight: 'bold', color: confidenceColor }}>{simulationConfidence}%</span>
                                     </div>
-                                )}
-
-                                {analysisError && (
-                                    <p style={{color:'#f87171',fontSize:'0.8rem',margin:0}}>{analysisError}</p>
-                                )}
-
-                                {analysis && !analysis.insufficient && (<>
-                                    {/* Procedure name */}
                                     <div style={{
-                                        background:'rgba(56,189,248,0.08)',
-                                        borderRadius:6, padding:'10px 12px'
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                        marginBottom: '10px', padding: '4px 8px', borderRadius: '999px',
+                                        background: 'rgba(255,255,255,0.04)',
+                                        border: `1px solid ${confidenceColor}`, color: confidenceColor,
+                                        fontSize: '0.72rem', fontWeight: 800
                                     }}>
-                                        <div style={{color:'#38bdf8',fontWeight:700,fontSize:'0.92rem'}}>
-                                            {analysis.procedure}
-                                        </div>
-                                        {analysis.classification && (
-                                            <div style={{color:'var(--text-muted)',fontSize:'0.75rem',marginTop:3}}>
-                                                {analysis.classification}
-                                            </div>
-                                        )}
-                                        <div style={{
-                                            display:'inline-block', marginTop:6,
-                                            padding:'2px 8px', borderRadius:20,
-                                            fontSize:'0.68rem', fontWeight:600,
-                                            background: analysis.confidence==='high' ? 'rgba(52,211,153,0.15)'
-                                                : analysis.confidence==='medium' ? 'rgba(251,191,36,0.15)'
-                                                : 'rgba(248,113,113,0.15)',
-                                            color: analysis.confidence==='high' ? '#34d399'
-                                                : analysis.confidence==='medium' ? '#fbbf24' : '#f87171'
-                                        }}>
-                                            {(analysis.confidence||'medium').toUpperCase()} CONFIDENCE
-                                            {analysis.confidencePct ? ` — ${analysis.confidencePct}%` : ''}
-                                        </div>
-                                        {analysis.bothAgree && (
-                                            <div style={{
-                                                display:'inline-block', marginTop:6, marginLeft:6,
-                                                padding:'2px 8px', borderRadius:20,
-                                                fontSize:'0.68rem', fontWeight:600,
-                                                background:'rgba(52,211,153,0.1)', color:'#34d399'
-                                            }}>
-                                                ✓ ML + Rules Agree
-                                            </div>
-                                        )}
+                                        {confidenceLevel}
                                     </div>
-
-                                    {/* Apply recommendation directly to the simulation */}
-                                    <button
-                                        onClick={() => handleApplyRecommendation(analysis.procedure)}
-                                        disabled={isSimulating}
-                                        style={{
-                                            display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-                                            padding:'9px 12px', borderRadius:8,
-                                            border:'1px solid rgba(52,211,153,0.4)',
-                                            background: isSimulating ? 'rgba(52,211,153,0.06)' : 'rgba(52,211,153,0.12)',
-                                            color:'#34d399', fontSize:'0.78rem', fontWeight:700,
-                                            cursor: isSimulating ? 'not-allowed' : 'pointer'
-                                        }}
-                                    >
-                                        ✓ Apply This Recommendation
-                                    </button>
-
-                                    {applyNotice && (
+                                    <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '4px', overflow: 'hidden' }}>
                                         <div style={{
-                                            fontSize:'0.72rem', color:'#fbbf24',
-                                            background:'rgba(251,191,36,0.08)',
-                                            border:'1px solid rgba(251,191,36,0.25)',
-                                            borderRadius:6, padding:'7px 10px'
-                                        }}>
-                                            {applyNotice}
-                                        </div>
-                                    )}
-
-                                    {/* Clinical reasoning */}
-                                    {analysis.reasoning && (
-                                        <p style={{
-                                            color:'var(--text-main)',fontSize:'0.78rem',
-                                            lineHeight:1.6, margin:0
-                                        }}>
-                                            {analysis.reasoning}
-                                        </p>
-                                    )}
-
-                                    {/* Required landmark movements */}
-                                    {analysis.measurements?.length > 0 && (
-                                        <div>
-                                            <div style={{
-                                                fontSize:'0.68rem', color:'var(--text-muted)',
-                                                textTransform:'uppercase', letterSpacing:'0.07em',
-                                                marginBottom:6, fontWeight:600
-                                            }}>
-                                                Landmarks to Move ({analysis.measurements.length} key points)
-                                            </div>
-                                            <div style={{
-                                                fontSize:'0.7rem', color:'var(--text-muted)',
-                                                marginBottom:10, lineHeight:1.5
-                                            }}>
-                                                Move these landmarks by the specified amount to achieve the recommended procedure:
-                                            </div>
-                                            {analysis.measurements.map((m,i) => (
-                                                <div key={i} style={{
-                                                    padding:'9px 12px', marginBottom:6,
-                                                    background:'rgba(56,189,248,0.04)',
-                                                    borderRadius:8,
-                                                    border:'1px solid rgba(56,189,248,0.15)'
-                                                }}>
-                                                    <div style={{
-                                                        display:'flex', justifyContent:'space-between',
-                                                        alignItems:'center', marginBottom:4
-                                                    }}>
-                                                        <span style={{
-                                                            fontSize:'0.82rem',
-                                                            color:'var(--text-main)',
-                                                            fontWeight:700
-                                                        }}>
-                                                            {m.landmark}
-                                                        </span>
-                                                        <span style={{
-                                                            fontSize:'0.82rem', color:'#38bdf8',
-                                                            fontWeight:700, fontFamily:'monospace',
-                                                            background:'rgba(56,189,248,0.1)',
-                                                            padding:'2px 8px', borderRadius:4
-                                                        }}>
-                                                            {m.direction} {Math.abs(m.deltaMm).toFixed(1)} mm
-                                                        </span>
+                                            width: simulationConfidence + '%', height: '100%',
+                                            background: confidenceLevel === 'HIGH'
+                                                ? 'linear-gradient(90deg, var(--success), #4ade80)'
+                                                : confidenceLevel === 'MEDIUM'
+                                                    ? 'linear-gradient(90deg, #facc15, #fde047)'
+                                                    : 'linear-gradient(90deg, #ef4444, #f87171)',
+                                            borderRadius: '4px', transition: 'width 1s ease-out',
+                                            boxShadow: confidenceLevel === 'HIGH' ? '0 0 10px rgba(34, 197, 94, 0.5)'
+                                                : confidenceLevel === 'MEDIUM' ? '0 0 10px rgba(250, 204, 21, 0.5)'
+                                                : '0 0 10px rgba(239, 68, 68, 0.5)'
+                                        }} />
+                                    </div>
+                                    <div style={{ marginTop: '8px', fontSize: '0.75rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                                        Image quality, pose, movement scope, and {calibrationData?.confidence || 'Medium'} calibration accuracy
+                                    </div>
+                                    {confidenceFactorRows.length > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginTop: '12px' }}>
+                                            {confidenceFactorRows.map(([label, value]) => (
+                                                <div key={label} style={{ display: 'grid', gridTemplateColumns: '92px 1fr 34px', gap: '7px', alignItems: 'center' }}>
+                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>{label}</span>
+                                                    <div style={{ height: '5px', borderRadius: '999px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                                                        <div style={{
+                                                            width: `${Math.round(value * 100)}%`, height: '100%',
+                                                            background: value >= 0.78 ? 'var(--success)' : value >= 0.58 ? '#facc15' : '#ef4444'
+                                                        }} />
                                                     </div>
-                                                    <div style={{
-                                                        fontSize:'0.7rem', color:'var(--text-muted)',
-                                                        lineHeight:1.4
-                                                    }}>
-                                                        → Drag this landmark{' '}
-                                                        {m.direction === 'advance' ? 'forward (anteriorly)' :
-                                                         m.direction === 'retract' ? 'backward (posteriorly)' :
-                                                         m.direction === 'superior' ? 'upward' :
-                                                         m.direction === 'inferior' ? 'downward' :
-                                                         m.direction === 'left' ? 'to the left' :
-                                                         m.direction === 'right' ? 'to the right' : m.direction}
-                                                        {' '}by {Math.abs(m.deltaMm).toFixed(1)} mm
-                                                    </div>
+                                                    <span style={{ color: 'var(--text-dim)', fontSize: '0.66rem', textAlign: 'right' }}>{Math.round(value * 100)}%</span>
                                                 </div>
                                             ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Comparison mode tabs */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px' }}>
+                                {[['split', 'Slider'], ['difference', 'Diff'], ['region', 'Region']].map(([mode, label]) => (
+                                    <button
+                                        key={mode} type="button"
+                                        onClick={() => { setComparisonMode(mode); setShowComparisonSlider(true); }}
+                                        style={{
+                                            padding: '10px 6px', borderRadius: '8px',
+                                            border: comparisonMode === mode ? '1px solid var(--primary)' : '1px solid var(--border-medium)',
+                                            background: comparisonMode === mode ? 'rgba(14, 165, 233, 0.18)' : 'rgba(255, 255, 255, 0.03)',
+                                            color: comparisonMode === mode ? 'var(--text-main)' : 'var(--text-muted)',
+                                            cursor: 'pointer', fontSize: '0.74rem', fontWeight: 800
+                                        }}
+                                    >{label}</button>
+                                ))}
+                            </div>
+
+                            <button
+                                type="button" onClick={() => setShowComparisonSlider(prev => !prev)}
+                                style={{
+                                    padding: '12px', fontSize: '0.875rem', borderRadius: '8px',
+                                    border: '1px solid var(--primary)',
+                                    background: showComparisonSlider ? 'rgba(14, 165, 233, 0.22)' : 'rgba(14, 165, 233, 0.08)',
+                                    color: 'var(--primary)', cursor: 'pointer', fontWeight: 700,
+                                    transition: 'all var(--transition-fast)'
+                                }}
+                            >
+                                {showComparisonSlider ? 'Overlay Slider: On' : 'Overlay Slider: Off'}
+                            </button>
+
+                            <button
+                                type="button" onClick={handleBeginAdjustment}
+                                style={{
+                                    padding: '12px', fontSize: '0.875rem', borderRadius: '8px',
+                                    border: '1px solid var(--border-medium)', background: 'var(--bg-surface)',
+                                    color: 'var(--text-main)', cursor: 'pointer', transition: 'all var(--transition-fast)'
+                                }}
+                                onMouseEnter={(e) => e.target.style.background = 'var(--bg-elevated)'}
+                                onMouseLeave={(e) => e.target.style.background = 'var(--bg-surface)'}
+                            >
+                                Adjust Landmarks
+                            </button>
+
+                            {/* Golden Ratio Toggle */}
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '12px 16px', borderRadius: '8px',
+                                background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.25)'
+                            }}>
+                                <div>
+                                    <div style={{ color: '#fbbf24', fontWeight: 700, fontSize: '0.82rem' }}>φ Golden Ratio Mode</div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: 2 }}>Measure face against φ = 1.618</div>
+                                </div>
+                                <button
+                                    onClick={() => setGoldenRatioOn(v => !v)}
+                                    style={{
+                                        width: 44, height: 24, borderRadius: 12, border: 'none',
+                                        background: goldenRatioOn ? '#fbbf24' : 'var(--bg-elevated)',
+                                        cursor: 'pointer', position: 'relative', transition: 'all 0.2s', flexShrink: 0
+                                    }}
+                                >
+                                    <span style={{
+                                        position: 'absolute', top: 3, left: goldenRatioOn ? 23 : 3,
+                                        width: 18, height: 18, borderRadius: '50%',
+                                        background: 'white', transition: 'left 0.2s', display: 'block'
+                                    }} />
+                                </button>
+                            </div>
+
+                            <button
+                                type="button" onClick={handleGoldenRatioOnly} disabled={isGoldenLoading}
+                                style={{
+                                    padding: '11px 14px', fontSize: '0.82rem', borderRadius: '8px',
+                                    border: '1px solid rgba(251,191,36,0.4)',
+                                    background: isGoldenLoading ? 'rgba(251,191,36,0.05)' : 'rgba(251,191,36,0.1)',
+                                    color: '#fbbf24', cursor: isGoldenLoading ? 'wait' : 'pointer',
+                                    fontWeight: 700, width: '100%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                                }}
+                            >
+                                {isGoldenLoading ? 'Analysing...' : 'φ Analyse Golden Ratio Now'}
+                            </button>
+
+                            {/* Golden Ratio Results Panel */}
+                            {goldenRatioData && !goldenRatioData.error && (
+                                <div style={{
+                                    background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.3)',
+                                    borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <h4 style={{ color: '#fbbf24', margin: 0, fontSize: '0.88rem', fontWeight: 700 }}>φ Golden Ratio Analysis</h4>
+                                        <button
+                                            onClick={() => setShowGoldenLines(v => !v)}
+                                            style={{
+                                                fontSize: '0.68rem', padding: '3px 8px', borderRadius: 4,
+                                                border: '1px solid rgba(251,191,36,0.4)',
+                                                background: showGoldenLines ? 'rgba(251,191,36,0.15)' : 'transparent',
+                                                color: '#fbbf24', cursor: 'pointer', fontWeight: 600
+                                            }}
+                                        >
+                                            {showGoldenLines ? '— Lines On' : '— Lines Off'}
+                                        </button>
+                                    </div>
+
+                                    <div style={{
+                                        display: 'flex', gap: 6, padding: 3,
+                                        background: 'rgba(0,0,0,0.25)', borderRadius: 8,
+                                        border: '1px solid rgba(251,191,36,0.15)'
+                                    }}>
+                                        {['reference', 'choice'].map(mode => (
+                                            <button
+                                                key={mode} onClick={() => setGoldenRatioPresentationMode(mode)}
+                                                style={{
+                                                    flex: 1, padding: '6px 8px', borderRadius: 6, border: 'none',
+                                                    background: goldenRatioPresentationMode === mode ? '#fbbf24' : 'transparent',
+                                                    color: goldenRatioPresentationMode === mode ? '#1a1300' : 'var(--text-muted)',
+                                                    fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer'
+                                                }}
+                                            >
+                                                {mode === 'reference' ? 'Reference Only' : 'Choice — Apply'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: -6, lineHeight: 1.4 }}>
+                                        {goldenRatioPresentationMode === 'reference'
+                                            ? 'Showing φ deviations as a passive reference — landmarks are not changed.'
+                                            : 'You can apply suggested φ corrections directly to the landmarks below.'}
+                                    </div>
+
+                                    <div style={{
+                                        background: 'rgba(251,191,36,0.08)', borderRadius: 8,
+                                        padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                    }}>
+                                        <div>
+                                            <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Harmony Score</div>
                                             <div style={{
-                                                marginTop:8, padding:'8px 12px',
-                                                background:'rgba(52,211,153,0.06)',
-                                                border:'1px solid rgba(52,211,153,0.2)',
-                                                borderRadius:6, fontSize:'0.7rem',
-                                                color:'rgba(52,211,153,0.8)', lineHeight:1.5
+                                                color: goldenRatioData.harmonyScore >= 80 ? '#34d399'
+                                                    : goldenRatioData.harmonyScore >= 60 ? '#fbbf24' : '#f87171',
+                                                fontWeight: 700, fontSize: '1.6rem', fontFamily: 'monospace'
                                             }}>
-                                                💡 Select each landmark from the dropdown on the left, then use Precision mode to enter the exact mm value.
+                                                {goldenRatioData.harmonyScore}
+                                                <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>/100</span>
                                             </div>
+                                        </div>
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', maxWidth: 160, textAlign: 'right', lineHeight: 1.5 }}>
+                                            {goldenRatioData.overallAssessment}
+                                        </div>
+                                    </div>
+
+                                    {Object.values(goldenRatioData.ratios || {}).map((r, i) => (
+                                        <div key={i} style={{
+                                            padding: '8px 12px', borderRadius: 6,
+                                            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)'
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                <span style={{ color: 'var(--text-main)', fontSize: '0.78rem', fontWeight: 500 }}>{r.label}</span>
+                                                <span style={{
+                                                    fontSize: '0.68rem', padding: '2px 7px', borderRadius: 12,
+                                                    background: r.within_norm ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
+                                                    color: r.within_norm ? '#34d399' : '#f87171', fontWeight: 600
+                                                }}>
+                                                    {r.within_norm ? '✓ Within norm' : '⚠ Deviation'}
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem' }}>
+                                                <span style={{ color: 'var(--text-muted)' }}>Current: <b style={{ color: 'var(--text-main)' }}>{r.current}</b></span>
+                                                <span style={{ color: 'var(--text-muted)' }}>Ideal φ: <b style={{ color: '#fbbf24' }}>{r.ideal}</b></span>
+                                                <span style={{ color: 'var(--text-muted)' }}>Δ: <b style={{ color: r.within_norm ? '#34d399' : '#f87171' }}>{r.deviation_mm} mm</b></span>
+                                            </div>
+                                            {!r.within_norm && (
+                                                <div style={{ marginTop: 8 }}>
+                                                    <div style={{ fontSize: '0.72rem', color: 'rgba(251,191,36,0.9)', fontWeight: 600, marginBottom: 4 }}>
+                                                        Required correction: {r.deviation_mm} mm
+                                                    </div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'rgba(251,191,36,0.65)', lineHeight: 1.5 }}>
+                                                        {r.label === 'Lower / Upper Face Height'
+                                                            ? `→ Move Gnathion and Menton ${r.deviation_mm}mm ${r.current > r.ideal ? 'superiorly (up)' : 'inferiorly (down)'} to reach φ ratio`
+                                                            : r.label === 'Jaw Width / Face Width'
+                                                            ? `→ Move Gonion Left and Gonion Right ${r.deviation_mm}mm ${r.current > r.ideal ? 'inward (medially)' : 'outward (laterally)'} to reach φ ratio`
+                                                            : `→ Adjust ${r.label} landmarks by ${r.deviation_mm}mm to reach φ ratio`}
+                                                    </div>
+                                                    {goldenRatioPresentationMode === 'choice' && (
+                                                        <button
+                                                            onClick={() => handleApplyGoldenRatioCorrection(r)}
+                                                            disabled={isSimulating}
+                                                            style={{
+                                                                marginTop: 8, width: '100%', padding: '7px 10px', borderRadius: 6,
+                                                                border: '1px solid rgba(251,191,36,0.4)',
+                                                                background: 'rgba(251,191,36,0.12)', color: '#fbbf24',
+                                                                fontSize: '0.72rem', fontWeight: 700,
+                                                                cursor: isSimulating ? 'not-allowed' : 'pointer'
+                                                            }}
+                                                        >
+                                                            ✓ Apply This Correction
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* AI Procedure Recommendation Panel */}
+                            {(isAnalyzing || analysis || analysisError) && (
+                                <div style={{
+                                    background: 'rgba(56,189,248,0.04)', border: '1px solid rgba(56,189,248,0.25)',
+                                    borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <h4 style={{ color: '#38bdf8', margin: 0, fontSize: '0.88rem', fontWeight: 700 }}>⚕ Procedure Recommendation</h4>
+                                        {analysis && (
+                                            <button
+                                                onClick={() => setShowAiOverlay(v => !v)}
+                                                style={{
+                                                    fontSize: '0.68rem', padding: '3px 8px', borderRadius: 4,
+                                                    border: '1px solid rgba(56,189,248,0.4)',
+                                                    background: showAiOverlay ? 'rgba(56,189,248,0.15)' : 'transparent',
+                                                    color: '#38bdf8', cursor: 'pointer', fontWeight: 600
+                                                }}
+                                            >
+                                                {showAiOverlay ? '◆ Overlay On' : '◇ Overlay Off'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {isAnalyzing && (
+                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'flex', gap: 8, alignItems: 'center' }}>
+                                            <span style={{
+                                                width: 10, height: 10, borderRadius: '50%',
+                                                border: '2px solid #38bdf8', borderTopColor: 'transparent',
+                                                display: 'inline-block', animation: 'spin 0.8s linear infinite'
+                                            }} />
+                                            Analysing landmark movements...
                                         </div>
                                     )}
 
-                                    {/* Top 3 alternatives — each shown as its own separate, applicable card */}
-                                    {analysis.top3?.length > 1 && (
-                                        <details style={{marginTop:4}}>
-                                            <summary style={{
-                                                fontSize:'0.72rem', color:'var(--text-muted)',
-                                                cursor:'pointer'
+                                    {analysisError && <p style={{ color: '#f87171', fontSize: '0.8rem', margin: 0 }}>{analysisError}</p>}
+
+                                    {analysis && !analysis.insufficient && (<>
+                                        <div style={{ background: 'rgba(56,189,248,0.08)', borderRadius: 6, padding: '10px 12px' }}>
+                                            <div style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.92rem' }}>{analysis.procedure}</div>
+                                            {analysis.classification && (
+                                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: 3 }}>{analysis.classification}</div>
+                                            )}
+                                            <div style={{
+                                                display: 'inline-block', marginTop: 6, padding: '2px 8px', borderRadius: 20,
+                                                fontSize: '0.68rem', fontWeight: 600,
+                                                background: analysis.confidence === 'high' ? 'rgba(52,211,153,0.15)'
+                                                    : analysis.confidence === 'medium' ? 'rgba(251,191,36,0.15)' : 'rgba(248,113,113,0.15)',
+                                                color: analysis.confidence === 'high' ? '#34d399'
+                                                    : analysis.confidence === 'medium' ? '#fbbf24' : '#f87171'
                                             }}>
-                                                Other possibilities
-                                            </summary>
-                                            <div style={{marginTop:8, display:'flex', flexDirection:'column', gap:6}}>
-                                                {analysis.top3.slice(1).map((t,i) => {
-                                                    const altPresetId = mapRecommendationToPresetId(t.procedure);
-                                                    return (
+                                                {(analysis.confidence || 'medium').toUpperCase()} CONFIDENCE
+                                                {analysis.confidencePct ? ` — ${analysis.confidencePct}%` : ''}
+                                            </div>
+                                            {analysis.bothAgree && (
+                                                <div style={{
+                                                    display: 'inline-block', marginTop: 6, marginLeft: 6,
+                                                    padding: '2px 8px', borderRadius: 20, fontSize: '0.68rem', fontWeight: 600,
+                                                    background: 'rgba(52,211,153,0.1)', color: '#34d399'
+                                                }}>
+                                                    ✓ ML + Rules Agree
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <button
+                                            onClick={() => handleApplyRecommendation(analysis.procedure)}
+                                            disabled={isSimulating}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                                padding: '9px 12px', borderRadius: 8,
+                                                border: '1px solid rgba(52,211,153,0.4)',
+                                                background: isSimulating ? 'rgba(52,211,153,0.06)' : 'rgba(52,211,153,0.12)',
+                                                color: '#34d399', fontSize: '0.78rem', fontWeight: 700,
+                                                cursor: isSimulating ? 'not-allowed' : 'pointer'
+                                            }}
+                                        >
+                                            ✓ Apply This Recommendation
+                                        </button>
+
+                                        {applyNotice && (
+                                            <div style={{
+                                                fontSize: '0.72rem', color: '#fbbf24',
+                                                background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)',
+                                                borderRadius: 6, padding: '7px 10px'
+                                            }}>
+                                                {applyNotice}
+                                            </div>
+                                        )}
+
+                                        {analysis.reasoning && (
+                                            <p style={{ color: 'var(--text-main)', fontSize: '0.78rem', lineHeight: 1.6, margin: 0 }}>
+                                                {analysis.reasoning}
+                                            </p>
+                                        )}
+
+                                        {analysis.measurements?.length > 0 && (
+                                            <div>
+                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6, fontWeight: 600 }}>
+                                                    Landmarks to Move ({analysis.measurements.length} key points)
+                                                </div>
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+                                                    Move these landmarks by the specified amount to achieve the recommended procedure:
+                                                </div>
+                                                {analysis.measurements.map((m, i) => (
+                                                    <div key={i} style={{
+                                                        padding: '9px 12px', marginBottom: 6,
+                                                        background: 'rgba(56,189,248,0.04)', borderRadius: 8,
+                                                        border: '1px solid rgba(56,189,248,0.15)'
+                                                    }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                            <span style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 700 }}>{m.landmark}</span>
+                                                            <span style={{
+                                                                fontSize: '0.82rem', color: '#38bdf8', fontWeight: 700,
+                                                                fontFamily: 'monospace', background: 'rgba(56,189,248,0.1)',
+                                                                padding: '2px 8px', borderRadius: 4
+                                                            }}>
+                                                                {m.direction} {Math.abs(m.deltaMm).toFixed(1)} mm
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                                                            → Drag this landmark{' '}
+                                                            {m.direction === 'advance' ? 'forward (anteriorly)'
+                                                                : m.direction === 'retract' ? 'backward (posteriorly)'
+                                                                : m.direction === 'superior' ? 'upward'
+                                                                : m.direction === 'inferior' ? 'downward'
+                                                                : m.direction === 'left' ? 'to the left'
+                                                                : m.direction === 'right' ? 'to the right'
+                                                                : m.direction}
+                                                            {' '}by {Math.abs(m.deltaMm).toFixed(1)} mm
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                <div style={{
+                                                    marginTop: 8, padding: '8px 12px',
+                                                    background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)',
+                                                    borderRadius: 6, fontSize: '0.7rem', color: 'rgba(52,211,153,0.8)', lineHeight: 1.5
+                                                }}>
+                                                    💡 Select each landmark from the dropdown on the left, then use Precision mode to enter the exact mm value.
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {analysis.top3?.length > 1 && (
+                                            <details style={{ marginTop: 4 }}>
+                                                <summary style={{ fontSize: '0.72rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                                    Other possibilities
+                                                </summary>
+                                                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                    {analysis.top3.slice(1).map((t, i) => (
                                                         <div key={i} style={{
-                                                            display:'flex', justifyContent:'space-between',
-                                                            alignItems:'center', gap:8,
-                                                            fontSize:'0.73rem', color:'var(--text-muted)',
-                                                            padding:'7px 10px',
-                                                            background:'rgba(255,255,255,0.03)',
-                                                            border:'1px solid rgba(255,255,255,0.06)',
-                                                            borderRadius:6
+                                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                            gap: 8, fontSize: '0.73rem', color: 'var(--text-muted)',
+                                                            padding: '7px 10px', background: 'rgba(255,255,255,0.03)',
+                                                            border: '1px solid rgba(255,255,255,0.06)', borderRadius: 6
                                                         }}>
-                                                            <div style={{display:'flex', flexDirection:'column', gap:1}}>
-                                                                <span style={{color:'var(--text-main)', fontWeight:600}}>{t.procedure}</span>
-                                                                <span style={{fontFamily:'monospace', fontSize:'0.68rem'}}>{t.probability}% probability</span>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                                                <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{t.procedure}</span>
+                                                                <span style={{ fontFamily: 'monospace', fontSize: '0.68rem' }}>{t.probability}% probability</span>
                                                             </div>
                                                             <button
                                                                 onClick={() => handleApplyRecommendation(t.procedure)}
                                                                 disabled={isSimulating}
-                                                                title={altPresetId ? 'Apply this alternative instead' : 'Informational only — no surgical preset'}
                                                                 style={{
-                                                                    flexShrink:0,
-                                                                    padding:'5px 9px', borderRadius:6,
-                                                                    border:'1px solid rgba(56,189,248,0.35)',
-                                                                    background:'rgba(56,189,248,0.1)',
-                                                                    color:'#38bdf8', fontSize:'0.68rem', fontWeight:700,
+                                                                    flexShrink: 0, padding: '5px 9px', borderRadius: 6,
+                                                                    border: '1px solid rgba(56,189,248,0.35)',
+                                                                    background: 'rgba(56,189,248,0.1)', color: '#38bdf8',
+                                                                    fontSize: '0.68rem', fontWeight: 700,
                                                                     cursor: isSimulating ? 'not-allowed' : 'pointer'
                                                                 }}
-                                                            >
-                                                                Apply
-                                                            </button>
+                                                            >Apply</button>
                                                         </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </details>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        )}
+                                    </>)}
+
+                                    {analysis?.insufficient && (
+                                        <div style={{
+                                            color: '#fbbf24', fontSize: '0.8rem',
+                                            background: 'rgba(251,191,36,0.08)', padding: '10px 12px', borderRadius: 6
+                                        }}>
+                                            ⚠ {analysis.message}
+                                        </div>
                                     )}
-                                </>)}
-
-                                {analysis?.insufficient && (
-                                    <div style={{
-                                        color:'#fbbf24', fontSize:'0.8rem',
-                                        background:'rgba(251,191,36,0.08)',
-                                        padding:'10px 12px', borderRadius:6
-                                    }}>
-                                        ⚠ {analysis.message}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Export PDF */}
-                        <button
-                            type="button"
-                            onClick={handleExportPDF}
-                            disabled={isExporting}
-                            style={{
-                                padding: '14px',
-                                fontSize: '0.9rem',
-                                borderRadius: '8px',
-                                border: '1px solid rgba(239, 68, 68, 0.5)',
-                                background: isExporting ? 'rgba(239, 68, 68, 0.05)' : 'rgba(239, 68, 68, 0.1)',
-                                color: '#ef4444',
-                                cursor: isExporting ? 'wait' : 'pointer',
-                                fontWeight: '700',
-                                width: '100%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                opacity: isExporting ? 0.7 : 1,
-                                transition: 'all var(--transition-fast)',
-                                boxShadow: isExporting ? 'none' : '0 0 12px rgba(239, 68, 68, 0.15)',
-                                letterSpacing: '0.03em'
-                            }}
-                            onMouseEnter={(e) => { if (!isExporting) e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; }}
-                            onMouseLeave={(e) => { if (!isExporting) e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
-                        >
-                            {isExporting ? (
-                                <>Generating PDF...</>
-                            ) : (
-                                <>Export PDF Report</>
+                                </div>
                             )}
-                        </button>
 
-                        {/* Save to Patient Record */}
-                        {simulationResult && (
+                            {/* Export PDF */}
                             <button
-                                type="button"
-                                onClick={handleOpenSavePanel}
+                                type="button" onClick={handleExportPDF} disabled={isExporting}
                                 style={{
                                     padding: '14px', fontSize: '0.9rem', borderRadius: '8px',
-                                    border: '1px solid rgba(52,211,153,0.5)',
-                                    background: 'rgba(52,211,153,0.1)', color: '#34d399',
-                                    cursor: 'pointer', fontWeight: 700, width: '100%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                                    border: '1px solid rgba(239, 68, 68, 0.5)',
+                                    background: isExporting ? 'rgba(239, 68, 68, 0.05)' : 'rgba(239, 68, 68, 0.1)',
+                                    color: '#ef4444', cursor: isExporting ? 'wait' : 'pointer',
+                                    fontWeight: '700', width: '100%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                    opacity: isExporting ? 0.7 : 1, transition: 'all var(--transition-fast)',
+                                    boxShadow: isExporting ? 'none' : '0 0 12px rgba(239, 68, 68, 0.15)',
+                                    letterSpacing: '0.03em'
                                 }}
+                                onMouseEnter={(e) => { if (!isExporting) e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; }}
+                                onMouseLeave={(e) => { if (!isExporting) e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
                             >
-                                💾 Save to Patient Record
+                                {isExporting ? 'Generating PDF...' : 'Export PDF Report'}
                             </button>
-                        )}
 
-                        {showSavePanel && (
-                            <div style={{
-                                background: 'rgba(52,211,153,0.04)',
-                                border: '1px solid rgba(52,211,153,0.25)',
-                                borderRadius: 10, padding: 16,
-                                display: 'flex', flexDirection: 'column', gap: 10
-                            }}>
-                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                                    <h4 style={{ color:'#34d399', margin:0, fontSize:'0.85rem', fontWeight:700 }}>Save This Result</h4>
-                                    <button onClick={() => setShowSavePanel(false)} style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:'0.9rem' }}>✕</button>
-                                </div>
-
-                                <div style={{ display:'flex', gap:6 }}>
-                                    {['new', 'existing'].map(mode => (
-                                        <button
-                                            key={mode}
-                                            onClick={() => setSavePatientMode(mode)}
-                                            style={{
-                                                flex:1, padding:'6px 8px', borderRadius:6, border:'none',
-                                                background: savePatientMode === mode ? '#34d399' : 'rgba(255,255,255,0.05)',
-                                                color: savePatientMode === mode ? '#06281c' : 'var(--text-muted)',
-                                                fontSize:'0.72rem', fontWeight:700, cursor:'pointer'
-                                            }}
-                                        >
-                                            {mode === 'new' ? 'New Patient' : 'Existing Patient'}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {savePatientMode === 'new' ? (<>
-                                    <input
-                                        placeholder="First name"
-                                        value={newPatientFirstName}
-                                        onChange={e => setNewPatientFirstName(e.target.value)}
-                                        style={{ padding:8, borderRadius:6, border:'1px solid var(--border-medium)', background:'var(--bg-elevated)', color:'var(--text-main)', fontSize:'0.8rem' }}
-                                    />
-                                    <input
-                                        placeholder="Last name"
-                                        value={newPatientLastName}
-                                        onChange={e => setNewPatientLastName(e.target.value)}
-                                        style={{ padding:8, borderRadius:6, border:'1px solid var(--border-medium)', background:'var(--bg-elevated)', color:'var(--text-main)', fontSize:'0.8rem' }}
-                                    />
-                                    <input
-                                        placeholder="Patient's account email (optional — links Patient View)"
-                                        value={newPatientAccountEmail}
-                                        onChange={e => setNewPatientAccountEmail(e.target.value)}
-                                        style={{ padding:8, borderRadius:6, border:'1px solid var(--border-medium)', background:'var(--bg-elevated)', color:'var(--text-main)', fontSize:'0.8rem' }}
-                                    />
-                                </>) : (
-                                    <select
-                                        value={selectedPatientId}
-                                        onChange={e => setSelectedPatientId(e.target.value)}
-                                        style={{ padding:8, borderRadius:6, border:'1px solid var(--border-medium)', background:'var(--bg-elevated)', color:'var(--text-main)', fontSize:'0.8rem' }}
-                                    >
-                                        <option value="">
-                                            {doctorPatients.length ? '— Choose a patient —' : 'No patients found (or not logged in as a doctor)'}
-                                        </option>
-                                        {doctorPatients.map(p => (
-                                            <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
-                                        ))}
-                                    </select>
-                                )}
-
-                                <textarea
-                                    placeholder="Notes for the patient (optional)"
-                                    rows={2}
-                                    value={doctorNotesForPatient}
-                                    onChange={e => setDoctorNotesForPatient(e.target.value)}
-                                    style={{ padding:8, borderRadius:6, border:'1px solid var(--border-medium)', background:'var(--bg-elevated)', color:'var(--text-main)', fontSize:'0.8rem', resize:'vertical' }}
-                                />
-
+                            {/* Save to Patient Record */}
+                            {simulationResult && (
                                 <button
-                                    onClick={handleSaveToPatientRecord}
-                                    disabled={isSavingCase}
+                                    type="button" onClick={handleOpenSavePanel}
                                     style={{
-                                        padding:'9px', borderRadius:6, border:'none',
-                                        background:'#34d399', color:'#06281c',
-                                        fontWeight:700, fontSize:'0.8rem',
-                                        cursor: isSavingCase ? 'wait' : 'pointer'
+                                        padding: '14px', fontSize: '0.9rem', borderRadius: '8px',
+                                        border: '1px solid rgba(52,211,153,0.5)',
+                                        background: 'rgba(52,211,153,0.1)', color: '#34d399',
+                                        cursor: 'pointer', fontWeight: 700, width: '100%',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
                                     }}
                                 >
-                                    {isSavingCase ? 'Saving...' : 'Save'}
+                                    💾 Save to Patient Record
                                 </button>
+                            )}
 
-                                {saveCaseStatus && (
-                                    <div style={{ fontSize:'0.72rem', color: saveCaseStatus.startsWith('Saved') ? '#34d399' : '#f87171' }}>
-                                        {saveCaseStatus}
+                            {showSavePanel && (
+                                <div style={{
+                                    background: 'rgba(52,211,153,0.04)', border: '1px solid rgba(52,211,153,0.25)',
+                                    borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 10
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <h4 style={{ color: '#34d399', margin: 0, fontSize: '0.85rem', fontWeight: 700 }}>Save This Result</h4>
+                                        <button onClick={() => setShowSavePanel(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem' }}>✕</button>
                                     </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    // Not Calibrated State
-                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>
-                        Calibrate the image to enable simulation actions.
-                    </div>
-                )}
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                        {['new', 'existing'].map(mode => (
+                                            <button
+                                                key={mode} onClick={() => setSavePatientMode(mode)}
+                                                style={{
+                                                    flex: 1, padding: '6px 8px', borderRadius: 6, border: 'none',
+                                                    background: savePatientMode === mode ? '#34d399' : 'rgba(255,255,255,0.05)',
+                                                    color: savePatientMode === mode ? '#06281c' : 'var(--text-muted)',
+                                                    fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer'
+                                                }}
+                                            >
+                                                {mode === 'new' ? 'New Patient' : 'Existing Patient'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {savePatientMode === 'new' ? (<>
+                                        <input placeholder="First name" value={newPatientFirstName} onChange={e => setNewPatientFirstName(e.target.value)}
+                                            style={{ padding: 8, borderRadius: 6, border: '1px solid var(--border-medium)', background: 'var(--bg-elevated)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                                        <input placeholder="Last name" value={newPatientLastName} onChange={e => setNewPatientLastName(e.target.value)}
+                                            style={{ padding: 8, borderRadius: 6, border: '1px solid var(--border-medium)', background: 'var(--bg-elevated)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                                        <input placeholder="Patient's account email (optional — links Patient View)" value={newPatientAccountEmail} onChange={e => setNewPatientAccountEmail(e.target.value)}
+                                            style={{ padding: 8, borderRadius: 6, border: '1px solid var(--border-medium)', background: 'var(--bg-elevated)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                                    </>) : (
+                                        <select value={selectedPatientId} onChange={e => setSelectedPatientId(e.target.value)}
+                                            style={{ padding: 8, borderRadius: 6, border: '1px solid var(--border-medium)', background: 'var(--bg-elevated)', color: 'var(--text-main)', fontSize: '0.8rem' }}>
+                                            <option value="">{doctorPatients.length ? '— Choose a patient —' : 'No patients found (or not logged in as a doctor)'}</option>
+                                            {doctorPatients.map(p => (
+                                                <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                    <textarea placeholder="Notes for the patient (optional)" rows={2} value={doctorNotesForPatient} onChange={e => setDoctorNotesForPatient(e.target.value)}
+                                        style={{ padding: 8, borderRadius: 6, border: '1px solid var(--border-medium)', background: 'var(--bg-elevated)', color: 'var(--text-main)', fontSize: '0.8rem', resize: 'vertical' }} />
+                                    <button onClick={handleSaveToPatientRecord} disabled={isSavingCase}
+                                        style={{
+                                            padding: '9px', borderRadius: 6, border: 'none',
+                                            background: '#34d399', color: '#06281c',
+                                            fontWeight: 700, fontSize: '0.8rem',
+                                            cursor: isSavingCase ? 'wait' : 'pointer'
+                                        }}
+                                    >
+                                        {isSavingCase ? 'Saving...' : 'Save'}
+                                    </button>
+                                    {saveCaseStatus && (
+                                        <div style={{ fontSize: '0.72rem', color: saveCaseStatus.startsWith('Saved') ? '#34d399' : '#f87171' }}>
+                                            {saveCaseStatus}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                    ) : (
+                        // Not calibrated state
+                        <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>
+                            Calibrate the image to enable simulation actions.
+                        </div>
+                    )}
                 </div>
 
-                <div style={{
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: '12px',
-                    padding: '10px'
-                }}>
+                {/* 3D Viewer Panel */}
+                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px' }}>
                     <button
-                        type="button"
-                        onClick={() => setIs3DPanelOpen(prev => !prev)}
+                        type="button" onClick={() => setIs3DPanelOpen(prev => !prev)}
                         style={{
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            background: 'transparent',
-                            border: '1px solid var(--border-medium)',
-                            color: 'var(--text-main)',
-                            borderRadius: '8px',
-                            padding: '8px 10px',
-                            cursor: 'pointer',
-                            fontSize: '0.85rem',
-                            fontWeight: 600
+                            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            background: 'transparent', border: '1px solid var(--border-medium)',
+                            color: 'var(--text-main)', borderRadius: '8px', padding: '8px 10px',
+                            cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600
                         }}
                     >
                         <span>3D Face Landmarks</span>
                         <span>{is3DPanelOpen ? 'Hide' : 'Show'}</span>
                     </button>
-
                     {is3DPanelOpen && (
                         <div style={{ marginTop: '10px' }}>
                             <FaceMesh3DViewer
@@ -2696,6 +2019,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 </div>
             </div>
 
+            {/* Calibration Modal */}
             {showCalibration && imgObj && (
                 <CalibrationModal
                     imageObj={imgObj}
@@ -2705,152 +2029,112 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                 />
             )}
 
-
-
-                {/* ── Procedure Info Modal ─────────────────────────────── */}
-                {infoProcedure && (
-                    <>
-                        <div
-                            onClick={() => setInfoProcedure(null)}
-                            style={{
-                                position: 'fixed', inset: 0,
-                                background: 'rgba(0,0,0,0.6)',
-                                zIndex: 200, backdropFilter: 'blur(4px)'
-                            }}
-                        />
-                        <div style={{
-                            position: 'fixed',
-                            top: '50%', left: '50%',
-                            transform: 'translate(-50%, -50%)',
-                            zIndex: 201,
-                            background: 'var(--bg-elevated, #1a2235)',
-                            border: '1px solid rgba(56,189,248,0.3)',
-                            borderRadius: 14,
-                            padding: '28px 28px 24px',
-                            width: '520px', maxWidth: '90vw',
-                            maxHeight: '80vh', overflowY: 'auto',
-                            boxShadow: '0 24px 60px rgba(0,0,0,0.5)'
-                        }}>
-                            {/* Header */}
-                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom: 20 }}>
-                                <div>
-                                    <div style={{ fontSize:'1.1rem', fontWeight:700, color:'#38bdf8', marginBottom:4 }}>
-                                        {infoProcedure.label}
-                                    </div>
-                                    <div style={{
-                                        display:'inline-block', padding:'3px 10px',
-                                        background:'rgba(56,189,248,0.1)',
-                                        border:'1px solid rgba(56,189,248,0.3)',
-                                        borderRadius:20, fontSize:'0.72rem',
-                                        color:'#38bdf8', fontWeight:600
-                                    }}>
-                                        {infoProcedure.category}
-                                    </div>
+            {/* Procedure Info Modal */}
+            {infoProcedure && (
+                <>
+                    <div
+                        onClick={() => setInfoProcedure(null)}
+                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, backdropFilter: 'blur(4px)' }}
+                    />
+                    <div style={{
+                        position: 'fixed', top: '50%', left: '50%',
+                        transform: 'translate(-50%, -50%)', zIndex: 201,
+                        background: 'var(--bg-elevated, #1a2235)',
+                        border: '1px solid rgba(56,189,248,0.3)', borderRadius: 14,
+                        padding: '28px 28px 24px', width: '520px', maxWidth: '90vw',
+                        maxHeight: '80vh', overflowY: 'auto',
+                        boxShadow: '0 24px 60px rgba(0,0,0,0.5)'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+                            <div>
+                                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#38bdf8', marginBottom: 4 }}>{infoProcedure.label}</div>
+                                <div style={{
+                                    display: 'inline-block', padding: '3px 10px',
+                                    background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)',
+                                    borderRadius: 20, fontSize: '0.72rem', color: '#38bdf8', fontWeight: 600
+                                }}>
+                                    {infoProcedure.category}
                                 </div>
-                                <button
-                                    onClick={() => setInfoProcedure(null)}
-                                    style={{
-                                        background:'rgba(255,255,255,0.07)',
-                                        border:'1px solid rgba(255,255,255,0.15)',
-                                        color:'#e2e8f0', borderRadius:8,
-                                        width:32, height:32, cursor:'pointer',
-                                        fontSize:'1rem', display:'flex',
-                                        alignItems:'center', justifyContent:'center'
-                                    }}
-                                >✕</button>
                             </div>
-
-                            {(() => {
-                                const info = PROCEDURE_INFO[infoProcedure.id];
-                                if (!info) return (
-                                    <p style={{ color:'#64748b', fontSize:'0.85rem' }}>
-                                        {infoProcedure.summary}
-                                    </p>
-                                );
-                                return (
-                                    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
-                                        {/* What is it */}
-                                        <div>
-                                            <div style={{ fontSize:'0.68rem', color:'#64748b', textTransform:'uppercase', letterSpacing:'0.08em', fontWeight:600, marginBottom:8 }}>
-                                                What is this procedure?
-                                            </div>
-                                            <p style={{ fontSize:'0.84rem', color:'#e2e8f0', lineHeight:1.6, margin:0 }}>
-                                                {info.whatIsIt}
-                                            </p>
-                                        </div>
-
-                                        {/* When to use */}
-                                        <div style={{ background:'rgba(56,189,248,0.05)', border:'1px solid rgba(56,189,248,0.2)', borderRadius:8, padding:'14px 16px' }}>
-                                            <div style={{ fontSize:'0.68rem', color:'#64748b', textTransform:'uppercase', letterSpacing:'0.08em', fontWeight:600, marginBottom:8 }}>
-                                                When to use this procedure?
-                                            </div>
-                                            <p style={{ fontSize:'0.84rem', color:'#e2e8f0', lineHeight:1.6, margin:0 }}>
-                                                {info.whenToUse}
-                                            </p>
-                                        </div>
-
-                                        {/* Indication */}
-                                        <div style={{ display:'flex', gap:16 }}>
-                                            <div style={{ flex:1, background:'rgba(52,211,153,0.06)', border:'1px solid rgba(52,211,153,0.2)', borderRadius:8, padding:'10px 14px' }}>
-                                                <div style={{ fontSize:'0.65rem', color:'#64748b', textTransform:'uppercase', letterSpacing:'0.08em', fontWeight:600, marginBottom:4 }}>Indication</div>
-                                                <div style={{ fontSize:'0.82rem', color:'#34d399', fontWeight:600 }}>{info.indication}</div>
-                                            </div>
-                                            <div style={{ flex:1, background:'rgba(251,191,36,0.06)', border:'1px solid rgba(251,191,36,0.2)', borderRadius:8, padding:'10px 14px' }}>
-                                                <div style={{ fontSize:'0.65rem', color:'#64748b', textTransform:'uppercase', letterSpacing:'0.08em', fontWeight:600, marginBottom:4 }}>Recovery</div>
-                                                <div style={{ fontSize:'0.82rem', color:'#fbbf24', fontWeight:600 }}>{info.recovery}</div>
-                                            </div>
-                                        </div>
-
-                                        {/* Landmarks to move */}
-                                        <div>
-                                            <div style={{ fontSize:'0.68rem', color:'#64748b', textTransform:'uppercase', letterSpacing:'0.08em', fontWeight:600, marginBottom:10 }}>
-                                                Key landmarks to move
-                                            </div>
-                                            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                                                {info.landmarks.map((lm, i) => (
-                                                    <div key={i} style={{
-                                                        display:'flex', alignItems:'center', gap:10,
-                                                        padding:'8px 12px',
-                                                        background:'rgba(255,255,255,0.03)',
-                                                        border:'1px solid rgba(255,255,255,0.07)',
-                                                        borderRadius:6
-                                                    }}>
-                                                        <div style={{
-                                                            width:22, height:22, borderRadius:'50%',
-                                                            background:'rgba(56,189,248,0.15)',
-                                                            border:'1px solid rgba(56,189,248,0.4)',
-                                                            color:'#38bdf8', fontSize:'0.7rem',
-                                                            fontWeight:700, display:'flex',
-                                                            alignItems:'center', justifyContent:'center',
-                                                            flexShrink:0
-                                                        }}>{i+1}</div>
-                                                        <span style={{ fontSize:'0.82rem', color:'#e2e8f0' }}>{lm}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Select button */}
-                                        <button
-                                            type="button"
-                                            onClick={() => { setSelectedProcedureId(infoProcedure.id); setInfoProcedure(null); }}
-                                            style={{
-                                                padding:'12px', borderRadius:8,
-                                                border:'1px solid rgba(56,189,248,0.4)',
-                                                background:'rgba(56,189,248,0.15)',
-                                                color:'#38bdf8', cursor:'pointer',
-                                                fontWeight:700, fontSize:'0.88rem',
-                                                width:'100%', marginTop:4
-                                            }}
-                                        >
-                                            Select {infoProcedure.label}
-                                        </button>
-                                    </div>
-                                );
-                            })()}
+                            <button
+                                onClick={() => setInfoProcedure(null)}
+                                style={{
+                                    background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)',
+                                    color: '#e2e8f0', borderRadius: 8, width: 32, height: 32,
+                                    cursor: 'pointer', fontSize: '1rem',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}
+                            >✕</button>
                         </div>
-                    </>
-                )}
+
+                        {(() => {
+                            const info = PROCEDURE_INFO[infoProcedure.id];
+                            if (!info) return <p style={{ color: '#64748b', fontSize: '0.85rem' }}>{infoProcedure.summary}</p>;
+                            return (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 }}>
+                                            What is this procedure?
+                                        </div>
+                                        <p style={{ fontSize: '0.84rem', color: '#e2e8f0', lineHeight: 1.6, margin: 0 }}>{info.whatIsIt}</p>
+                                    </div>
+                                    <div style={{ background: 'rgba(56,189,248,0.05)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 8, padding: '14px 16px' }}>
+                                        <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 }}>
+                                            When to use this procedure?
+                                        </div>
+                                        <p style={{ fontSize: '0.84rem', color: '#e2e8f0', lineHeight: 1.6, margin: 0 }}>{info.whenToUse}</p>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 16 }}>
+                                        <div style={{ flex: 1, background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: 8, padding: '10px 14px' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>Indication</div>
+                                            <div style={{ fontSize: '0.82rem', color: '#34d399', fontWeight: 600 }}>{info.indication}</div>
+                                        </div>
+                                        <div style={{ flex: 1, background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '10px 14px' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>Recovery</div>
+                                            <div style={{ fontSize: '0.82rem', color: '#fbbf24', fontWeight: 600 }}>{info.recovery}</div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 10 }}>
+                                            Key landmarks to move
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            {info.landmarks.map((lm, i) => (
+                                                <div key={i} style={{
+                                                    display: 'flex', alignItems: 'center', gap: 10,
+                                                    padding: '8px 12px', background: 'rgba(255,255,255,0.03)',
+                                                    border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6
+                                                }}>
+                                                    <div style={{
+                                                        width: 22, height: 22, borderRadius: '50%',
+                                                        background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.4)',
+                                                        color: '#38bdf8', fontSize: '0.7rem', fontWeight: 700,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                                                    }}>{i + 1}</div>
+                                                    <span style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>{lm}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSelectedProcedureId(infoProcedure.id); setInfoProcedure(null); }}
+                                        style={{
+                                            padding: '12px', borderRadius: 8,
+                                            border: '1px solid rgba(56,189,248,0.4)',
+                                            background: 'rgba(56,189,248,0.15)', color: '#38bdf8',
+                                            cursor: 'pointer', fontWeight: 700, fontSize: '0.88rem',
+                                            width: '100%', marginTop: 4
+                                        }}
+                                    >
+                                        Select {infoProcedure.label}
+                                    </button>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </>
+            )}
         </div>
     );
 }
