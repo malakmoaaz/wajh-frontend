@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ImageUploader } from './components/ImageUploader';
 import { WajhCanvas } from './components/WajhCanvas';
 import AdminDashboard from './components/AdminDashboard';
@@ -107,6 +107,59 @@ function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
 
+  // ── Upload → Detect → Canvas pipeline ──────────────────────────
+  // This was previously disconnected: ImageUploader had no onImageUpload
+  // handler (it would throw when a file was dropped), and WajhCanvas was
+  // rendered unconditionally without ever receiving an image, so the upload
+  // panel and the surgical workspace showed at the same time instead of
+  // one after the other.
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [landmarks, setLandmarks] = useState(null);
+  const [meshLandmarks, setMeshLandmarks] = useState(null);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectionError, setDetectionError] = useState('');
+
+  const landmarkServiceRef = useRef(null);
+  if (!landmarkServiceRef.current) {
+    landmarkServiceRef.current = new FaceLandmarkService();
+  }
+
+  const handleImageUpload = (dataUrl) => {
+    setDetectionError('');
+    setIsDetecting(true);
+
+    const img = new Image();
+    img.onload = async () => {
+      try {
+        const result = await landmarkServiceRef.current.detect(img);
+        if (!result) {
+          setDetectionError('No face detected in this photo. Try a clear, front-facing photo with good lighting.');
+          setIsDetecting(false);
+          return;
+        }
+        setLandmarks(result.keyPoints);
+        setMeshLandmarks(result.allLandmarks);
+        setUploadedImage(dataUrl);
+      } catch (e) {
+        setDetectionError(e?.message || 'Face detection failed. Please try again.');
+      } finally {
+        setIsDetecting(false);
+      }
+    };
+    img.onerror = () => {
+      setDetectionError('Could not load that image file.');
+      setIsDetecting(false);
+    };
+    img.src = dataUrl;
+  };
+
+  const handleNewPatient = () => {
+    setUploadedImage(null);
+    setLandmarks(null);
+    setMeshLandmarks(null);
+    setDetectionError('');
+  };
+
   return (
     <>
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
@@ -122,6 +175,15 @@ function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            {uploadedImage && !showAdmin && (
+              <button
+                onClick={handleNewPatient}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm tracking-wide transition-colors border border-white/5"
+              >
+                <RotateCcw size={16} />
+                New Patient
+              </button>
+            )}
             <button 
               onClick={() => setShowAdmin(!showAdmin)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm tracking-wide transition-colors border border-white/5"
@@ -136,20 +198,41 @@ function App() {
         <main className="flex-1 relative p-6">
           {showAdmin ? (
             <AdminDashboard />
+          ) : uploadedImage ? (
+            // Step 2: Surgical workspace — WajhCanvas lays out its own
+            // Surgical Controls / Canvas / Simulation columns internally,
+            // so it needs the full width here, not a shared grid column.
+            <div className="bg-[#0e1420] rounded-xl border border-white/5 overflow-hidden shadow-2xl h-full min-h-[600px]">
+              <WajhCanvas
+                imageSrc={uploadedImage}
+                initialLandmarks={landmarks}
+                initialMeshLandmarks={meshLandmarks}
+              />
+            </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-              {/* Left Canvas Panel */}
-              <div className="lg:col-span-2 bg-[#0e1420] rounded-xl border border-white/5 overflow-hidden shadow-2xl relative min-h-[500px]">
-                <WajhCanvas />
-              </div>
-              
-              {/* Right Control / Upload Panel */}
-              <div className="bg-[#0e1420] rounded-xl border border-white/5 p-6 shadow-2xl flex flex-col gap-6">
-                <div>
-                  <h3 className="text-sm font-medium uppercase tracking-wider text-white/70 mb-2">Patient Data Input</h3>
-                  <p className="text-xs text-white/40">Upload high-resolution clinical imaging to extract anatomical facial landmarks.</p>
-                </div>
-                <ImageUploader />
+            // Step 1: Upload landing page
+            <div className="flex flex-col items-center justify-center text-center gap-6 max-w-xl mx-auto py-10">
+              <img src={LOGO_SRC} alt="WAJH" style={{ width: 140, height: 'auto', borderRadius: 16 }} />
+              <h1 className="text-4xl font-bold leading-tight">
+                Maxillofacial<br />
+                <span className="bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">Morphology</span> Surgical Prediction
+              </h1>
+              <p className="text-white/40 text-sm">
+                Intelligent reconstructive simulation for post-maxillofacial skeletal procedures
+              </p>
+
+              <div className="bg-[#0e1420] rounded-xl border border-white/5 p-6 shadow-2xl w-full">
+                {isDetecting ? (
+                  <div className="flex flex-col items-center gap-3 py-6">
+                    <div className="spinner" />
+                    <p className="text-sm text-white/60">Detecting facial landmarks...</p>
+                  </div>
+                ) : (
+                  <ImageUploader onImageUpload={handleImageUpload} />
+                )}
+                {detectionError && (
+                  <p className="text-red-400 text-xs mt-4">{detectionError}</p>
+                )}
               </div>
             </div>
           )}
