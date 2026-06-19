@@ -1063,9 +1063,23 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                         </div>
                     )}
 
-                    {!imgObj && <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>Loading Canvas...</p>}
+               {/* After / editing canvas panel */}
+                    <div style={{
+                        flex: '1 1 0',
+                        minWidth: 0,
+                        minHeight: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        background: '#000',
+                        border: simulationResult ? '1px solid var(--border-subtle)' : 'none',
+                        borderRadius: simulationResult ? '10px' : 0,
+                        overflow: 'hidden'
+                    }}>
+                        {!imgObj && <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>Loading Canvas...</p>}
 
-    {imgObj && (
+                        {imgObj && (
         <div style={{
             position: 'relative',
             width: '100%',
@@ -1226,6 +1240,8 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
             )}
         </div>
     )}
+ </div> 
+  </div> 
 
                 {/* Clinical disclaimer */}
                 <div style={{
@@ -1882,6 +1898,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                             Calibrate the image to enable simulation actions.
                         </div>
                     )}
+             </div> 
 
                 {/* 3D Viewer Panel */}
                 <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px' }}>
