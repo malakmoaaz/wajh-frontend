@@ -596,19 +596,20 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     };
 
     const handleApplyGoldenRatioCorrection = (ratio) => {
-        if (!ratio || ratio.within_norm) return;
-        const mmPerPx = calibrationData?.ratio || 0.264583;
-        const deltaPx = ratio.deviation_mm / mmPerPx;
-        const movePoint = (id, dxPx, dyPx) => {
-            const idx = points.findIndex(p => p.id === id);
-            if (idx === -1) return;
-            setPoints(prev => {
-                const next = [...prev];
-                const p = next[idx];
-                const clamped = clampToValidRange(idx, p.x + dxPx, p.y + dyPx);
-                next[idx] = patchPoint3DFields(p, clamped.x, clamped.y);
-                return next;
-            });
+    if (!ratio || ratio.within_norm) return;
+    const mmPerPx = calibrationData?.ratio || 0.264583;
+    const deltaPx = ratio.deviation_mm / mmPerPx;
+    // Bypass the 25mm drag limit — user explicitly requested this φ correction
+    const movePoint = (id, dxPx, dyPx) => {
+        const idx = points.findIndex(p => p.id === id);
+        if (idx === -1) return;
+        setPoints(prev => {
+            const next = [...prev];
+            const p = next[idx];
+            next[idx] = patchPoint3DFields(p, p.x + dxPx, p.y + dyPx);
+            return next;
+        });
+    };
         };
         if (ratio.label === 'Lower / Upper Face Height') {
             const movingUp = ratio.current > ratio.ideal;
@@ -1110,13 +1111,12 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                             onMouseUp={handleMouseUp}
                             onMouseLeave={handleMouseUp}
                             style={{
-                                display: 'block',
-                                maxWidth: '100%',
-                                maxHeight: '100%',
-                                width: 'auto',
-                                height: 'auto',
-                                objectFit: 'contain',
-                                cursor: (isSimulating || simulationResult)
+                            display: 'block',
+                            width: '100%',
+                            height: 'auto',
+                            maxHeight: '100%',
+                            aspectRatio: imgObj ? `${imgObj.width} / ${imgObj.height}` : undefined,
+                            cursor: (isSimulating || simulationResult)
                                     ? 'default'
                                     : draggingIdx !== null ? 'grabbing' : 'grab',
                                 filter: isSimulating ? 'blur(3px) grayscale(40%)' : 'none',
