@@ -831,9 +831,9 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     });
 
     const REGION_GROUPS = {
-    'Chin': ['pogonion', 'gnathion', 'chin_mid'],
+    'Chin': ['pogonion', 'gnathion', 'chin_mid', 'menton'],
     'Lower Jaw': ['gonion_l', 'gonion_r', 'labrale_inf'],
-    'Upper Jaw': ['subnasale', 'labrale_sup', 'stomion', 'nasion', 'alare_l', 'alare_r'],
+    'Upper Jaw': ['subnasale', 'labrale_sup', 'stomion', 'alare_l', 'alare_r'],
     'Cheeks': ['zygion_l', 'zygion_r'],
 };
 const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
@@ -1063,178 +1063,169 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                         </div>
                     )}
 
-                    {/* After / editing canvas panel */}
-                    <div style={{
-                        flex: '1 1 0',    /* ← equal share; was 'flex: 0 1 auto' which could shrink to 0 */
-                        minWidth: 0,
-                        minHeight: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        position: 'relative',
-                        background: '#000',
-                        border: simulationResult ? '1px solid var(--border-subtle)' : 'none',
-                        borderRadius: simulationResult ? '10px' : 0,
-                        overflow: 'hidden'
-                    }}>
-                        {/* Range warning toast */}
-                        {rangeWarning && (
-                            <div style={{
-                                position: 'absolute', top: '12px', left: '50%',
-                                transform: 'translateX(-50%)', zIndex: 6, maxWidth: '88%',
-                                padding: '8px 14px', borderRadius: '8px',
-                                background: 'rgba(248,113,113,0.14)',
-                                border: '1px solid rgba(248,113,113,0.45)',
-                                color: '#fca5a5', fontSize: '0.74rem', fontWeight: 600,
-                                textAlign: 'center', backdropFilter: 'blur(8px)',
-                                boxShadow: '0 4px 16px rgba(0,0,0,0.35)'
-                            }}>
-                                ⚠ {rangeWarning}
-                            </div>
-                        )}
+                    {!imgObj && <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>Loading Canvas...</p>}
 
-                        {/* After label */}
-                        {simulationResult && (
-                            <div style={{
-                                position: 'absolute', top: '12px', left: '12px', zIndex: 1,
-                                padding: '6px 10px', borderRadius: '999px',
-                                background: 'rgba(10, 12, 16, 0.72)',
-                                border: '1px solid var(--border-medium)',
-                                color: 'var(--text-main)', fontSize: '0.72rem', fontWeight: 700,
-                                letterSpacing: '0.06em', textTransform: 'uppercase', backdropFilter: 'blur(8px)'
-                            }}>
-                                After
-                            </div>
-                        )}
+    {imgObj && (
+        <div style={{
+            position: 'relative',
+            width: '100%',
+            maxHeight: '100%',
+            aspectRatio: `${imgObj.width} / ${imgObj.height}`,
+            overflow: 'hidden',
+            flexShrink: 0
+        }}>
+            {/* Range warning toast */}
+            {rangeWarning && (
+                <div style={{
+                    position: 'absolute', top: '12px', left: '50%',
+                    transform: 'translateX(-50%)', zIndex: 6, maxWidth: '88%',
+                    padding: '8px 14px', borderRadius: '8px',
+                    background: 'rgba(248,113,113,0.14)',
+                    border: '1px solid rgba(248,113,113,0.45)',
+                    color: '#fca5a5', fontSize: '0.74rem', fontWeight: 600,
+                    textAlign: 'center', backdropFilter: 'blur(8px)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.35)'
+                }}>
+                    ⚠ {rangeWarning}
+                </div>
+            )}
 
-                        {/* ── THE CANVAS ── */}
-                        <canvas
-                            ref={canvasRef}
-                            onMouseDown={handleMouseDown}
-                            onMouseMove={handleMouseMove}
-                            onMouseUp={handleMouseUp}
-                            onMouseLeave={handleMouseUp}
+            {/* After label */}
+            {simulationResult && (
+                <div style={{
+                    position: 'absolute', top: '12px', left: '12px', zIndex: 1,
+                    padding: '6px 10px', borderRadius: '999px',
+                    background: 'rgba(10, 12, 16, 0.72)',
+                    border: '1px solid var(--border-medium)',
+                    color: 'var(--text-main)', fontSize: '0.72rem', fontWeight: 700,
+                    letterSpacing: '0.06em', textTransform: 'uppercase', backdropFilter: 'blur(8px)'
+                }}>
+                    After
+                </div>
+            )}
+
+            {/* ── THE CANVAS ── */}
+            <canvas
+                ref={canvasRef}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                style={{
+                    display: 'block',
+                    width: '100%',
+                    height: '100%',
+                    cursor: (isSimulating || simulationResult)
+                        ? 'default'
+                        : draggingIdx !== null ? 'grabbing' : 'grab',
+                    filter: isSimulating ? 'blur(3px) grayscale(40%)' : 'none',
+                    transition: 'filter var(--transition-normal)'
+                }}
+            />
+
+            {/* Comparison overlays */}
+            {simulationResult && showComparisonSlider && (
+                <>
+                    {(comparisonMode === 'split' || comparisonMode === 'difference') && (
+                        <img
+                            src={imageSrc}
+                            alt="Original patient comparison overlay"
                             style={{
-                            display: 'block',
-                            width: '100%',
-                            height: 'auto',
-                            maxHeight: '100%',
-                            aspectRatio: imgObj ? `${imgObj.width} / ${imgObj.height}` : undefined,
-                            cursor: (isSimulating || simulationResult)
-                                    ? 'default'
-                                    : draggingIdx !== null ? 'grabbing' : 'grab',
-                                filter: isSimulating ? 'blur(3px) grayscale(40%)' : 'none',
-                                transition: 'filter var(--transition-normal)'
+                                position: 'absolute', inset: 0, height: '100%', width: '100%',
+                                objectFit: 'fill',
+                                clipPath: comparisonMode === 'split'
+                                    ? `inset(0 ${100 - comparisonSplit}% 0 0)` : 'none',
+                                mixBlendMode: comparisonMode === 'difference' ? 'difference' : 'normal',
+                                opacity: comparisonMode === 'difference' ? 0.72 : 1,
+                                filter: comparisonMode === 'difference' ? 'saturate(1.25) contrast(1.15)' : 'none',
+                                pointerEvents: 'none',
+                                transition: 'clip-path var(--transition-fast), opacity var(--transition-fast)'
                             }}
                         />
+                    )}
 
-                        {/* Comparison overlays */}
-                        {simulationResult && showComparisonSlider && (
-                            <>
-                                
+                    {comparisonMode === 'difference' && (
+                        <div style={{
+                            position: 'absolute', inset: 0,
+                            background: 'rgba(14, 165, 233, 0.12)',
+                            mixBlendMode: 'screen', pointerEvents: 'none'
+                        }} />
+                    )}
 
-                                {(comparisonMode === 'split' || comparisonMode === 'difference') && (
-                                    <img
-                                        src={imageSrc}
-                                        alt="Original patient comparison overlay"
-                                        style={{
-                                            position: 'absolute', inset: 0, height: '100%', width: '100%',
-                                            objectFit: 'contain',
-                                            clipPath: comparisonMode === 'split'
-                                                ? `inset(0 ${100 - comparisonSplit}% 0 0)` : 'none',
-                                            mixBlendMode: comparisonMode === 'difference' ? 'difference' : 'normal',
-                                            opacity: comparisonMode === 'difference' ? 0.72 : 1,
-                                            filter: comparisonMode === 'difference' ? 'saturate(1.25) contrast(1.15)' : 'none',
-                                            pointerEvents: 'none',
-                                            transition: 'clip-path var(--transition-fast), opacity var(--transition-fast)'
-                                        }}
-                                    />
-                                )}
+                    {comparisonMode === 'region' && specificRegionBoxes.length > 0 && (
+                        <>
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)', pointerEvents: 'none' }} />
+                            {specificRegionBoxes.map((box, i) => (
+                                <div key={i} style={{
+                                    position: 'absolute', left: box.left, top: box.top,
+                                    width: box.width, height: box.height,
+                                    border: '2px solid rgba(14,165,233,0.95)',
+                                    boxShadow: '0 0 22px rgba(14,165,233,0.65)',
+                                    borderRadius: '8px', pointerEvents: 'none'
+                                }}>
+                                    <span style={{
+                                        position: 'absolute', top: -20, left: 0,
+                                        background: 'rgba(14,165,233,0.9)', color: '#fff',
+                                        fontSize: '0.58rem', fontWeight: 700, padding: '2px 7px',
+                                        borderRadius: '4px', whiteSpace: 'nowrap'
+                                    }}>{box.name}</span>
+                                </div>
+                            ))}
+                        </>
+                    )}
 
-                                {comparisonMode === 'difference' && (
-                                    <div style={{
-                                        position: 'absolute', inset: 0,
-                                        background: 'rgba(14, 165, 233, 0.12)',
-                                        mixBlendMode: 'screen', pointerEvents: 'none'
-                                    }} />
-                                )}
-
-                                {comparisonMode === 'region' && specificRegionBoxes.length > 0 && (
-    <>
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)', pointerEvents: 'none' }} />
-        {specificRegionBoxes.map((box, i) => (
-            <div key={i} style={{ position: 'absolute', left: box.left, top: box.top,
-                width: box.width, height: box.height,
-                border: '2px solid rgba(14,165,233,0.95)',
-                boxShadow: '0 0 22px rgba(14,165,233,0.65)',
-                borderRadius: '8px', pointerEvents: 'none' }}>
-                <span style={{
-                    position: 'absolute', top: -20, left: 0,
-                    background: 'rgba(14,165,233,0.9)', color: '#fff',
-                    fontSize: '0.58rem', fontWeight: 700, padding: '2px 7px',
-                    borderRadius: '4px', whiteSpace: 'nowrap'
-                }}>{box.name}</span>
-            </div>
-        ))}
-    </>
-)}
-
-                                {comparisonMode === 'split' && (
-                                    <>
-                                        <div style={{
-                                            position: 'absolute', top: 0, bottom: 0,
-                                            left: `${comparisonSplit}%`, width: '2px',
-                                            transform: 'translateX(-1px)',
-                                            background: 'rgba(255,255,255,0.85)',
-                                            boxShadow: '0 0 16px rgba(14, 165, 233, 0.8)',
-                                            pointerEvents: 'none'
-                                        }} />
-                                        <div style={{
-                                            position: 'absolute', left: `${comparisonSplit}%`, top: '50%',
-                                            transform: 'translate(-50%, -50%)',
-                                            width: '34px', height: '34px', borderRadius: '999px',
-                                            background: 'rgba(10, 12, 16, 0.78)',
-                                            border: '1px solid rgba(255,255,255,0.55)',
-                                            color: '#fff', display: 'flex', alignItems: 'center',
-                                            justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800,
-                                            pointerEvents: 'none', backdropFilter: 'blur(8px)'
-                                        }}>
-                                            ||
-                                        </div>
-                                        <input
-                                            type="range" min="0" max="100" value={comparisonSplit}
-                                            aria-label="Before after comparison split"
-                                            onChange={(e) => setComparisonSplit(Number(e.target.value))}
-                                            style={{
-                                                position: 'absolute', left: '24px', right: '24px',
-                                                bottom: '18px', width: 'calc(100% - 48px)',
-                                                accentColor: 'var(--primary)', cursor: 'ew-resize'
-                                            }}
-                                        />
-                                    </>
-                                )}
-                            </>
-                        )}
-
-                        {/* Simulating spinner overlay */}
-                        {isSimulating && (
+                    {comparisonMode === 'split' && (
+                        <>
                             <div style={{
-                                position: 'absolute', inset: 0, zIndex: 5,
-                                display: 'flex', flexDirection: 'column',
-                                alignItems: 'center', justifyContent: 'center', gap: '12px',
-                                background: 'rgba(0, 0, 0, 0.48)', color: 'var(--text-main)',
-                                backdropFilter: 'blur(4px)', pointerEvents: 'auto'
+                                position: 'absolute', top: 0, bottom: 0,
+                                left: `${comparisonSplit}%`, width: '2px',
+                                transform: 'translateX(-1px)',
+                                background: 'rgba(255,255,255,0.85)',
+                                boxShadow: '0 0 16px rgba(14, 165, 233, 0.8)',
+                                pointerEvents: 'none'
+                            }} />
+                            <div style={{
+                                position: 'absolute', left: `${comparisonSplit}%`, top: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                width: '34px', height: '34px', borderRadius: '999px',
+                                background: 'rgba(10, 12, 16, 0.78)',
+                                border: '1px solid rgba(255,255,255,0.55)',
+                                color: '#fff', display: 'flex', alignItems: 'center',
+                                justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800,
+                                pointerEvents: 'none', backdropFilter: 'blur(8px)'
                             }}>
-                                <div className="spinner"></div>
-                                <strong>Analyzing face...</strong>
+                                ||
                             </div>
-                        )}
+                            <input
+                                type="range" min="0" max="100" value={comparisonSplit}
+                                aria-label="Before after comparison split"
+                                onChange={(e) => setComparisonSplit(Number(e.target.value))}
+                                style={{
+                                    position: 'absolute', left: '24px', right: '24px',
+                                    bottom: '18px', width: 'calc(100% - 48px)',
+                                    accentColor: 'var(--primary)', cursor: 'ew-resize'
+                                }}
+                            />
+                        </>
+                    )}
+                </>
+            )}
 
-                        {!imgObj && (
-                            <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>Loading Canvas...</p>
-                        )}
-                    </div>
+            {/* Simulating spinner */}
+            {isSimulating && (
+                <div style={{
+                    position: 'absolute', inset: 0, zIndex: 5,
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', gap: '12px',
+                    background: 'rgba(0, 0, 0, 0.48)', color: 'var(--text-main)',
+                    backdropFilter: 'blur(4px)', pointerEvents: 'auto'
+                }}>
+                    <div className="spinner"></div>
+                    <strong>Analyzing face...</strong>
                 </div>
+            )}
+        </div>
+    )}
 
                 {/* Clinical disclaimer */}
                 <div style={{
@@ -1518,61 +1509,87 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                             >
                                 {showComparisonSlider ? 'Overlay Slider: On' : 'Overlay Slider: Off'}
                             </button>
+                                {/* ── Landmark Adjustment + Golden Ratio — single block ── */}
+<div style={{
+    background: 'rgba(251,191,36,0.04)',
+    border: '1px solid rgba(251,191,36,0.3)',
+    borderRadius: '10px', padding: '14px',
+    display: 'flex', flexDirection: 'column', gap: '10px'
+}}>
+    <div style={{ color: '#fbbf24', fontWeight: 700, fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        φ Adjust Landmarks & Golden Ratio
+    </div>
+    <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
+        Analyse the golden ratio, then click Adjust Landmarks to apply φ corrections directly to the face model.
+    </div>
 
-                            <button
-                                type="button" onClick={handleBeginAdjustment}
-                                style={{
-                                    padding: '12px', fontSize: '0.875rem', borderRadius: '8px',
-                                    border: '1px solid var(--border-medium)', background: 'var(--bg-surface)',
-                                    color: 'var(--text-main)', cursor: 'pointer', transition: 'all var(--transition-fast)'
-                                }}
-                                onMouseEnter={(e) => e.target.style.background = 'var(--bg-elevated)'}
-                                onMouseLeave={(e) => e.target.style.background = 'var(--bg-surface)'}
-                            >
-                                Adjust Landmarks
-                            </button>
+    <button type="button" onClick={handleBeginAdjustment}
+        style={{ padding: '11px', fontSize: '0.875rem', borderRadius: '8px', border: '1px solid var(--border-medium)', background: 'var(--bg-surface)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: 600, transition: 'all var(--transition-fast)' }}
+        onMouseEnter={e => e.target.style.background = 'var(--bg-elevated)'}
+        onMouseLeave={e => e.target.style.background = 'var(--bg-surface)'}
+    >
+        Adjust Landmarks
+    </button>
 
-                            {/* Golden Ratio Toggle */}
-                            <div style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                padding: '12px 16px', borderRadius: '8px',
-                                background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.25)'
-                            }}>
-                                <div>
-                                    <div style={{ color: '#fbbf24', fontWeight: 700, fontSize: '0.82rem' }}>φ Golden Ratio Mode</div>
-                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: 2 }}>Measure face against φ = 1.618</div>
-                                </div>
-                                <button
-                                    onClick={() => setGoldenRatioOn(v => !v)}
-                                    style={{
-                                        width: 44, height: 24, borderRadius: 12, border: 'none',
-                                        background: goldenRatioOn ? '#fbbf24' : 'var(--bg-elevated)',
-                                        cursor: 'pointer', position: 'relative', transition: 'all 0.2s', flexShrink: 0
-                                    }}
-                                >
-                                    <span style={{
-                                        position: 'absolute', top: 3, left: goldenRatioOn ? 23 : 3,
-                                        width: 18, height: 18, borderRadius: '50%',
-                                        background: 'white', transition: 'left 0.2s', display: 'block'
-                                    }} />
-                                </button>
-                            </div>
+    <div style={{ borderTop: '1px solid rgba(251,191,36,0.15)', paddingTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>φ overlay lines on canvas</span>
+        <button onClick={() => setGoldenRatioOn(v => !v)}
+            style={{ width: 44, height: 24, borderRadius: 12, border: 'none', background: goldenRatioOn ? '#fbbf24' : 'var(--bg-elevated)', cursor: 'pointer', position: 'relative', transition: 'all 0.2s', flexShrink: 0 }}>
+            <span style={{ position: 'absolute', top: 3, left: goldenRatioOn ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: 'white', transition: 'left 0.2s', display: 'block' }} />
+        </button>
+    </div>
 
-                            <button
-                                type="button" onClick={handleGoldenRatioOnly} disabled={isGoldenLoading}
-                                style={{
-                                    padding: '11px 14px', fontSize: '0.82rem', borderRadius: '8px',
-                                    border: '1px solid rgba(251,191,36,0.4)',
-                                    background: isGoldenLoading ? 'rgba(251,191,36,0.05)' : 'rgba(251,191,36,0.1)',
-                                    color: '#fbbf24', cursor: isGoldenLoading ? 'wait' : 'pointer',
-                                    fontWeight: 700, width: '100%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-                                }}
-                            >
-                                {isGoldenLoading ? 'Analysing...' : 'φ Analyse Golden Ratio Now'}
-                            </button>
+    <button type="button" onClick={handleGoldenRatioOnly} disabled={isGoldenLoading}
+        style={{ padding: '9px 14px', fontSize: '0.78rem', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.4)', background: isGoldenLoading ? 'rgba(251,191,36,0.05)' : 'rgba(251,191,36,0.12)', color: '#fbbf24', cursor: isGoldenLoading ? 'wait' : 'pointer', fontWeight: 700, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        {isGoldenLoading ? 'Analysing...' : 'φ Analyse Golden Ratio Now'}
+    </button>
 
-                            
+    {/* Results appear inline here */}
+    {goldenRatioData && !goldenRatioData.error && (
+        <div style={{ borderTop: '1px solid rgba(251,191,36,0.15)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+                {['reference', 'choice'].map(mode => (
+                    <button key={mode} onClick={() => setGoldenRatioPresentationMode(mode)}
+                        style={{ flex: 1, padding: '5px 6px', borderRadius: 6, border: 'none', background: goldenRatioPresentationMode === mode ? '#fbbf24' : 'transparent', color: goldenRatioPresentationMode === mode ? '#1a1300' : 'var(--text-muted)', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>
+                        {mode === 'reference' ? 'Reference Only' : 'Choice — Apply'}
+                    </button>
+                ))}
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                Harmony Score: <b style={{ color: goldenRatioData.harmonyScore >= 80 ? '#34d399' : goldenRatioData.harmonyScore >= 60 ? '#fbbf24' : '#f87171' }}>{goldenRatioData.harmonyScore}/100</b> — {goldenRatioData.overallAssessment}
+            </div>
+            <button onClick={() => setShowGoldenLines(v => !v)}
+                style={{ alignSelf: 'flex-start', fontSize: '0.65rem', padding: '3px 8px', borderRadius: 4, border: '1px solid rgba(251,191,36,0.4)', background: showGoldenLines ? 'rgba(251,191,36,0.15)' : 'transparent', color: '#fbbf24', cursor: 'pointer', fontWeight: 600 }}>
+                {showGoldenLines ? '— Lines On' : '— Lines Off'}
+            </button>
+            {Object.values(goldenRatioData.ratios || {}).map((r, i) => (
+                <div key={i} style={{ padding: '8px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ color: 'var(--text-main)', fontSize: '0.75rem' }}>{r.label}</span>
+                        <span style={{ fontSize: '0.64rem', padding: '1px 6px', borderRadius: 10, background: r.within_norm ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)', color: r.within_norm ? '#34d399' : '#f87171', fontWeight: 600 }}>
+                            {r.within_norm ? '✓ OK' : `⚠ ${r.deviation_mm}mm`}
+                        </span>
+                    </div>
+                    {!r.within_norm && (
+                        <div style={{ fontSize: '0.68rem', color: 'rgba(251,191,36,0.7)', marginBottom: 4 }}>
+                            {r.label === 'Lower / Upper Face Height'
+                                ? `→ Move Gnathion ${r.deviation_mm}mm ${r.current > r.ideal ? 'up' : 'down'}`
+                                : r.label === 'Jaw Width / Face Width'
+                                ? `→ Move Gonions ${r.deviation_mm}mm ${r.current > r.ideal ? 'inward' : 'outward'}`
+                                : `→ Adjust by ${r.deviation_mm}mm`}
+                        </div>
+                    )}
+                    {!r.within_norm && goldenRatioPresentationMode === 'choice' && (
+                        <button onClick={() => handleApplyGoldenRatioCorrection(r)} disabled={isSimulating}
+                            style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.1)', color: '#fbbf24', fontSize: '0.68rem', fontWeight: 700, cursor: isSimulating ? 'not-allowed' : 'pointer' }}>
+                            ✓ Apply correction
+                        </button>
+                    )}
+                </div>
+            ))}
+        </div>
+    )}
+</div>
 
                             {/* AI Procedure Recommendation Panel */}
                             {(isAnalyzing || analysis || analysisError) && (
@@ -1865,126 +1882,6 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                             Calibrate the image to enable simulation actions.
                         </div>
                     )}
-                    {/* Golden Ratio Results Panel */}
-                            {goldenRatioData && !goldenRatioData.error && (
-                                <div style={{
-                                    background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.3)',
-                                    borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <h4 style={{ color: '#fbbf24', margin: 0, fontSize: '0.88rem', fontWeight: 700 }}>φ Golden Ratio Analysis</h4>
-                                        <button
-                                            onClick={() => setShowGoldenLines(v => !v)}
-                                            style={{
-                                                fontSize: '0.68rem', padding: '3px 8px', borderRadius: 4,
-                                                border: '1px solid rgba(251,191,36,0.4)',
-                                                background: showGoldenLines ? 'rgba(251,191,36,0.15)' : 'transparent',
-                                                color: '#fbbf24', cursor: 'pointer', fontWeight: 600
-                                            }}
-                                        >
-                                            {showGoldenLines ? '— Lines On' : '— Lines Off'}
-                                        </button>
-                                    </div>
-
-                                    <div style={{
-                                        display: 'flex', gap: 6, padding: 3,
-                                        background: 'rgba(0,0,0,0.25)', borderRadius: 8,
-                                        border: '1px solid rgba(251,191,36,0.15)'
-                                    }}>
-                                        {['reference', 'choice'].map(mode => (
-                                            <button
-                                                key={mode} onClick={() => setGoldenRatioPresentationMode(mode)}
-                                                style={{
-                                                    flex: 1, padding: '6px 8px', borderRadius: 6, border: 'none',
-                                                    background: goldenRatioPresentationMode === mode ? '#fbbf24' : 'transparent',
-                                                    color: goldenRatioPresentationMode === mode ? '#1a1300' : 'var(--text-muted)',
-                                                    fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer'
-                                                }}
-                                            >
-                                                {mode === 'reference' ? 'Reference Only' : 'Choice — Apply'}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: -6, lineHeight: 1.4 }}>
-                                        {goldenRatioPresentationMode === 'reference'
-                                            ? 'Showing φ deviations as a passive reference — landmarks are not changed.'
-                                            : 'You can apply suggested φ corrections directly to the landmarks below.'}
-                                    </div>
-
-                                    <div style={{
-                                        background: 'rgba(251,191,36,0.08)', borderRadius: 8,
-                                        padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-                                    }}>
-                                        <div>
-                                            <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Harmony Score</div>
-                                            <div style={{
-                                                color: goldenRatioData.harmonyScore >= 80 ? '#34d399'
-                                                    : goldenRatioData.harmonyScore >= 60 ? '#fbbf24' : '#f87171',
-                                                fontWeight: 700, fontSize: '1.6rem', fontFamily: 'monospace'
-                                            }}>
-                                                {goldenRatioData.harmonyScore}
-                                                <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>/100</span>
-                                            </div>
-                                        </div>
-                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', maxWidth: 160, textAlign: 'right', lineHeight: 1.5 }}>
-                                            {goldenRatioData.overallAssessment}
-                                        </div>
-                                    </div>
-
-                                    {Object.values(goldenRatioData.ratios || {}).map((r, i) => (
-                                        <div key={i} style={{
-                                            padding: '8px 12px', borderRadius: 6,
-                                            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)'
-                                        }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                                <span style={{ color: 'var(--text-main)', fontSize: '0.78rem', fontWeight: 500 }}>{r.label}</span>
-                                                <span style={{
-                                                    fontSize: '0.68rem', padding: '2px 7px', borderRadius: 12,
-                                                    background: r.within_norm ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
-                                                    color: r.within_norm ? '#34d399' : '#f87171', fontWeight: 600
-                                                }}>
-                                                    {r.within_norm ? '✓ Within norm' : '⚠ Deviation'}
-                                                </span>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem' }}>
-                                                <span style={{ color: 'var(--text-muted)' }}>Current: <b style={{ color: 'var(--text-main)' }}>{r.current}</b></span>
-                                                <span style={{ color: 'var(--text-muted)' }}>Ideal φ: <b style={{ color: '#fbbf24' }}>{r.ideal}</b></span>
-                                                <span style={{ color: 'var(--text-muted)' }}>Δ: <b style={{ color: r.within_norm ? '#34d399' : '#f87171' }}>{r.deviation_mm} mm</b></span>
-                                            </div>
-                                            {!r.within_norm && (
-                                                <div style={{ marginTop: 8 }}>
-                                                    <div style={{ fontSize: '0.72rem', color: 'rgba(251,191,36,0.9)', fontWeight: 600, marginBottom: 4 }}>
-                                                        Required correction: {r.deviation_mm} mm
-                                                    </div>
-                                                    <div style={{ fontSize: '0.7rem', color: 'rgba(251,191,36,0.65)', lineHeight: 1.5 }}>
-                                                        {r.label === 'Lower / Upper Face Height'
-                                                            ? `→ Move Gnathion and Menton ${r.deviation_mm}mm ${r.current > r.ideal ? 'superiorly (up)' : 'inferiorly (down)'} to reach φ ratio`
-                                                            : r.label === 'Jaw Width / Face Width'
-                                                            ? `→ Move Gonion Left and Gonion Right ${r.deviation_mm}mm ${r.current > r.ideal ? 'inward (medially)' : 'outward (laterally)'} to reach φ ratio`
-                                                            : `→ Adjust ${r.label} landmarks by ${r.deviation_mm}mm to reach φ ratio`}
-                                                    </div>
-                                                    {goldenRatioPresentationMode === 'choice' && (
-                                                        <button
-                                                            onClick={() => handleApplyGoldenRatioCorrection(r)}
-                                                            disabled={isSimulating}
-                                                            style={{
-                                                                marginTop: 8, width: '100%', padding: '7px 10px', borderRadius: 6,
-                                                                border: '1px solid rgba(251,191,36,0.4)',
-                                                                background: 'rgba(251,191,36,0.12)', color: '#fbbf24',
-                                                                fontSize: '0.72rem', fontWeight: 700,
-                                                                cursor: isSimulating ? 'not-allowed' : 'pointer'
-                                                            }}
-                                                        >
-                                                            ✓ Apply This Correction
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                </div>
 
                 {/* 3D Viewer Panel */}
                 <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '10px' }}>
