@@ -529,9 +529,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // ========================================
     // HANDLERS: Simulation & Calibration
     // ========================================
-    const handleSimulate = async (landmarkSet = points, procedureIdOverride = null) => {
-        if (!imgObj) return;
-        if (landmarkSet && typeof landmarkSet.preventDefault === 'function') landmarkSet = points;
+const handleSimulate = async (landmarkSet = points, procedureIdOverride = null, adaptiveTargets = null) => {        if (landmarkSet && typeof landmarkSet.preventDefault === 'function') landmarkSet = points;
         const activeProcedureId = procedureIdOverride ?? selectedProcedureId;
         const activeProcedure = procedureIdOverride ? getProcedurePreset(procedureIdOverride) : selectedProcedure;
         setIsSimulating(true);
@@ -543,10 +541,17 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         setGoldenRatioData(null);
         try {
             const originalPoints = initialLandmarks.map(p => ({ ...p }));
-            const procedureTargets = buildProcedureSimulationLandmarks(
-                originalPoints, landmarkSet, activeProcedureId,
-                { intensity: procedureIntensity, width: imgObj.width, height: imgObj.height }
-            );
+            // If patient-specific targets from rule engine are available, use those
+// instead of fixed preset offsets — makes simulation adaptive per patient
+const procedureTargets = adaptiveTargets?.length
+    ? originalPoints.map(p => {
+        const t = adaptiveTargets.find(t => t.id === p.id);
+        return t ? { ...p, x: t.x, y: t.y } : p;
+    })
+    : buildProcedureSimulationLandmarks(
+        originalPoints, landmarkSet, activeProcedureId,
+        { intensity: procedureIntensity, width: imgObj.width, height: imgObj.height }
+    );
             const result = await aiServiceRef.current.generateOutcome(
                 imgObj, originalPoints, procedureTargets,
                 { procedureId: activeProcedureId, intensity: procedureIntensity }
@@ -585,15 +590,18 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     const [applyNotice, setApplyNotice] = useState(null);
 
     const handleApplyRecommendation = (procedureLabel) => {
-        const presetId = mapRecommendationToPresetId(procedureLabel);
-        if (!presetId) {
-            setApplyNotice(`"${procedureLabel}" has no direct surgical preset to simulate — it's informational only.`);
-            setTimeout(() => setApplyNotice(null), 3500);
-            return;
-        }
-        setSelectedProcedureId(presetId);
-        handleSimulate(points, presetId);
-    };
+    const presetId = mapRecommendationToPresetId(procedureLabel);
+    if (!presetId) {
+        setApplyNotice(`"${procedureLabel}" has no direct surgical preset to simulate — it's informational only.`);
+        setTimeout(() => setApplyNotice(null), 3500);
+        return;
+    }
+    setSelectedProcedureId(presetId);
+    // Use patient-specific cephalometric targets if the rule engine computed them.
+    // Each patient gets a different simulation based on their actual facial proportions.
+    const targets = analysis?.targetLandmarks?.length ? analysis.targetLandmarks : null;
+    handleSimulate(points, presetId, targets);
+};
 
     const handleApplyGoldenRatioCorrection = (ratio) => {
     if (!ratio || ratio.within_norm) return;
@@ -762,10 +770,17 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         setIsExporting(true);
         try {
             const originalPoints = initialLandmarks.map(p => ({ ...p }));
-            const procedureTargets = buildProcedureSimulationLandmarks(
-                originalPoints, points, selectedProcedureId,
-                { intensity: procedureIntensity, width: imgObj.width, height: imgObj.height }
-            );
+            // Use patient-specific cephalometric targets when available (from rule engine).
+// Falls back to fixed preset offsets for manual simulate button presses.
+const procedureTargets = adaptiveTargets?.length
+    ? originalPoints.map(p => {
+        const t = adaptiveTargets.find(t => t.id === p.id);
+        return t ? { ...p, x: t.x, y: t.y } : p;
+    })
+    : buildProcedureSimulationLandmarks(
+        originalPoints, landmarkSet, activeProcedureId,
+        { intensity: procedureIntensity, width: imgObj.width, height: imgObj.height }
+    );
             await generateReport({
                 simulationResult, originalImage: imgObj,
                 initialLandmarks: originalPoints, currentPoints: procedureTargets,
