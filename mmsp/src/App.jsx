@@ -164,7 +164,7 @@ function App() {
     <>
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
       
-        <div className="h-screen bg-[#0a0e17] text-white flex flex-col">
+        <div className="min-h-screen bg-[#0a0e17] text-white flex flex-col">
         {/* Top Header / Navbar */}
         <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between bg-[#0e1420]">
           <div className="flex items-center gap-3">
@@ -202,8 +202,7 @@ function App() {
             // Step 2: Surgical workspace — WajhCanvas lays out its own
             // Surgical Controls / Canvas / Simulation columns internally,
             // so it needs the full width here, not a shared grid column.
-            <div className="bg-[#0e1420] rounded-xl border border-white/5 overflow-hidden shadow-2xl h-full min-h-[600px]">
-              <WajhCanvas
+              <div className="bg-[#0e1420] rounded-xl border border-white/5 overflow-hidden shadow-2xl h-full">              <WajhCanvas
                 imageSrc={uploadedImage}
                 initialLandmarks={landmarks}
                 initialMeshLandmarks={meshLandmarks}

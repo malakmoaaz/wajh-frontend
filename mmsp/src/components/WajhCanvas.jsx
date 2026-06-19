@@ -869,10 +869,11 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // RENDER
     // ========================================
     return (
-        <div className="wajh-canvas-container" style={{
+            <div className="wajh-canvas-container" style={{
             position: 'relative',
-            height: '100%',           /* ← fill actual parent, not whole viewport */
-            minHeight: 0,             /* ← lets flex children shrink below natural size */
+            height: 'calc(100vh - 73px - 48px)',  /* viewport minus header (~73px) minus main's p-6 padding (24px top+bottom = 48px) */
+            minHeight: '600px',
+            maxHeight: '100%',             
             width: '100%',
             display: 'flex',
             flexDirection: 'row',
