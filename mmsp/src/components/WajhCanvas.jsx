@@ -1127,29 +1127,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                         {/* Comparison overlays */}
                         {simulationResult && showComparisonSlider && (
                             <>
-                                <div style={{
-                                    position: 'absolute', top: '48px', left: '12px', zIndex: 2,
-                                    padding: '5px 8px', borderRadius: '999px',
-                                    background: 'rgba(10, 12, 16, 0.72)',
-                                    border: '1px solid var(--border-medium)',
-                                    color: 'var(--text-main)', fontSize: '0.68rem', fontWeight: 800,
-                                    letterSpacing: '0.05em', textTransform: 'uppercase',
-                                    backdropFilter: 'blur(8px)', pointerEvents: 'none'
-                                }}>
-                                    {comparisonMode === 'difference' ? 'Difference overlay'
-                                        : comparisonMode === 'region' ? 'Region focus' : 'Before overlay'}
-                                </div>
-                                <div style={{
-                                    position: 'absolute', top: '48px', right: '12px', zIndex: 2,
-                                    padding: '5px 8px', borderRadius: '999px',
-                                    background: 'rgba(10, 12, 16, 0.72)',
-                                    border: '1px solid var(--border-medium)',
-                                    color: 'var(--text-main)', fontSize: '0.68rem', fontWeight: 800,
-                                    letterSpacing: '0.05em', textTransform: 'uppercase',
-                                    backdropFilter: 'blur(8px)', pointerEvents: 'none'
-                                }}>
-                                    After
-                                </div>
+                                
 
                                 {(comparisonMode === 'split' || comparisonMode === 'difference') && (
                                     <img
@@ -1844,13 +1822,13 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                             </div>
                                         )}
 
-                                        {analysis.top3?.length > 1 && (
-                                            <details style={{ marginTop: 4 }}>
-                                                <summary style={{ fontSize: '0.72rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                                    Other possibilities
-                                                </summary>
-                                                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                                    {analysis.top3.slice(1).map((t, i) => (
+                                        {analysis.top3?.filter(t => t.procedure !== 'Golden Ratio Optimization' && t.procedure !== analysis.procedure).length > 0 && (
+                                        <details style={{ marginTop: 4 }}>
+                                            <summary style={{ fontSize: '0.72rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                                Other possibilities
+                                            </summary>
+                                            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                {analysis.top3.filter(t => t.procedure !== 'Golden Ratio Optimization' && t.procedure !== analysis.procedure).map((t, i) => (
                                                         <div key={i} style={{
                                                             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                                             gap: 8, fontSize: '0.73rem', color: 'var(--text-muted)',
