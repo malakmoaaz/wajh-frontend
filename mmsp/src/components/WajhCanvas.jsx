@@ -1498,8 +1498,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
 
                             {/* Comparison mode tabs */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px' }}>
-                                {[['split', 'Slider'], ['difference', 'Diff'], ['region', 'Region']].map(([mode, label]) => (
-                                    <button
+                            {[['split', 'Slider'], ['difference', 'Diff']].map(([mode, label]) => (                                    <button
                                         key={mode} type="button"
                                         onClick={() => { setComparisonMode(mode); setShowComparisonSlider(true); }}
                                         style={{
@@ -1785,13 +1784,17 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                     </>)}
 
                                     {analysis?.insufficient && (
-                                        <div style={{
-                                            color: '#fbbf24', fontSize: '0.8rem',
-                                            background: 'rgba(251,191,36,0.08)', padding: '10px 12px', borderRadius: 6
-                                        }}>
-                                            ⚠ {analysis.message}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    <div style={{ background: 'rgba(56,189,248,0.08)', borderRadius: 6, padding: '10px 12px' }}>
+                                        <div style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.92rem' }}>
+                                            {selectedProcedure?.label}
                                         </div>
-                                    )}
+                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginTop: 4, lineHeight: 1.4 }}>
+                                            Preset applied. For a refined ML recommendation, click Adjust Landmarks and manually move chin, jaw, and gonion landmarks, then re-simulate.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                                 </div>
                             )}
 
