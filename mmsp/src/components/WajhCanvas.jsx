@@ -610,6 +610,18 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
             return next;
         });
     };
+    if (ratio.label === 'Lower / Upper Face Height') {
+        const movingUp = ratio.current > ratio.ideal;
+        movePoint('gnathion', 0, movingUp ? -deltaPx : deltaPx);
+    } else if (ratio.label === 'Jaw Width / Face Width') {
+        const moveInward = ratio.current > ratio.ideal;
+        const half = deltaPx / 2;
+        movePoint('gonion_l', moveInward ? half : -half, 0);
+        movePoint('gonion_r', moveInward ? -half : half, 0);
+    }
+    setApplyNotice(`Applied φ correction for ${ratio.label}.`);
+    setTimeout(() => setApplyNotice(null), 3000);
+};
         };
         if (ratio.label === 'Lower / Upper Face Height') {
             const movingUp = ratio.current > ratio.ideal;
