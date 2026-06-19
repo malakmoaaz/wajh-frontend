@@ -51,7 +51,7 @@ export const AnalysisService = {
                 calibration: calibrationData ? { pixelsPerMm: calibrationData.ratio } : null,
                 goldenRatio,
             }),
-            signal: AbortSignal.timeout(5000), // 5 second timeout
+            signal: AbortSignal.timeout(20000), // 20 second timeout
         });
         if (!res.ok) throw new Error(`ML server: HTTP ${res.status}`);
         return res.json();
