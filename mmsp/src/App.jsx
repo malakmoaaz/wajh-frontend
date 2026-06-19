@@ -164,7 +164,7 @@ function App() {
     <>
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
       
-      <div className="min-h-screen bg-[#0a0e17] text-white flex flex-col">
+        <div className="h-screen bg-[#0a0e17] text-white flex flex-col">
         {/* Top Header / Navbar */}
         <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between bg-[#0e1420]">
           <div className="flex items-center gap-3">
