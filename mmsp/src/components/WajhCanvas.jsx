@@ -830,24 +830,26 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         return Math.hypot(point.x - original.x, point.y - original.y) > 1;
     });
 
-    const regionHighlightBox = imgObj && changedProcedurePoints.length > 0
-        ? (() => {
-            const xs = changedProcedurePoints.map(point => point.x);
-            const ys = changedProcedurePoints.map(point => point.y);
-            const padX = imgObj.width * 0.045;
-            const padY = imgObj.height * 0.045;
-            const left  = Math.max(0, Math.min(...xs) - padX);
-            const top   = Math.max(0, Math.min(...ys) - padY);
-            const right  = Math.min(imgObj.width,  Math.max(...xs) + padX);
-            const bottom = Math.min(imgObj.height, Math.max(...ys) + padY);
-            return {
-                left:   `${(left  / imgObj.width)  * 100}%`,
-                top:    `${(top   / imgObj.height) * 100}%`,
-                width:  `${((right  - left) / imgObj.width)  * 100}%`,
-                height: `${((bottom - top)  / imgObj.height) * 100}%`
-            };
-        })()
-        : null;
+    const REGION_GROUPS = {
+    'Chin': ['pogonion', 'gnathion', 'chin_mid'],
+    'Lower Jaw': ['gonion_l', 'gonion_r', 'labrale_inf'],
+    'Upper Jaw': ['subnasale', 'labrale_sup', 'stomion', 'nasion', 'alare_l', 'alare_r'],
+    'Cheeks': ['zygion_l', 'zygion_r'],
+};
+const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
+    ? Object.entries(REGION_GROUPS).flatMap(([name, ids]) => {
+        const pts = changedProcedurePoints.filter(p => ids.includes(p.id));
+        if (pts.length === 0) return [];
+        const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+        const pad = 18;
+        return [{ name,
+            left:   `${(Math.max(0, Math.min(...xs) - pad) / imgObj.width)  * 100}%`,
+            top:    `${(Math.max(0, Math.min(...ys) - pad) / imgObj.height) * 100}%`,
+            width:  `${((Math.max(...xs) - Math.min(...xs) + pad * 2) / imgObj.width)  * 100}%`,
+            height: `${((Math.max(...ys) - Math.min(...ys) + pad * 2) / imgObj.height) * 100}%`,
+        }];
+    })
+    : [];
 
     const confidenceFactorRows = simulationConfidenceDetails
         ? [
@@ -858,13 +860,16 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
           ]
         : [];
 
-    const procedureCatalog = PROCEDURE_PRESETS.reduce((catalog, procedure) => {
+        const procedureCatalog = PROCEDURE_PRESETS.reduce((catalog, procedure) => {
         const existing = catalog.find(item => item.category === procedure.category);
         if (existing) existing.items.push(procedure.catalogLabel || procedure.label);
         else catalog.push({ category: procedure.category, items: [procedure.catalogLabel || procedure.label] });
         return catalog;
-    }, []);
-
+        }, []);
+        const effectiveProcedure = analysis?.procedure === 'No Surgery Required'
+            ? (analysis.top3?.find(t => t.procedure !== 'No Surgery Required' && t.procedure !== 'Golden Ratio Optimization')?.procedure ?? analysis.procedure)
+            : analysis?.procedure ?? null;
+        const effectiveProcedureEntry = analysis?.top3?.find(t => t.procedure === effectiveProcedure);
     // ========================================
     // RENDER
     // ========================================
@@ -1154,17 +1159,25 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                     }} />
                                 )}
 
-                                {comparisonMode === 'region' && regionHighlightBox && (
-                                    <>
-                                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0, 0, 0, 0.42)', pointerEvents: 'none' }} />
-                                        <div style={{
-                                            position: 'absolute', ...regionHighlightBox,
-                                            border: '2px solid rgba(14, 165, 233, 0.95)',
-                                            boxShadow: '0 0 0 999px rgba(0, 0, 0, 0.12), 0 0 22px rgba(14, 165, 233, 0.65)',
-                                            borderRadius: '10px', pointerEvents: 'none'
-                                        }} />
-                                    </>
-                                )}
+                                {comparisonMode === 'region' && specificRegionBoxes.length > 0 && (
+    <>
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)', pointerEvents: 'none' }} />
+        {specificRegionBoxes.map((box, i) => (
+            <div key={i} style={{ position: 'absolute', left: box.left, top: box.top,
+                width: box.width, height: box.height,
+                border: '2px solid rgba(14,165,233,0.95)',
+                boxShadow: '0 0 22px rgba(14,165,233,0.65)',
+                borderRadius: '8px', pointerEvents: 'none' }}>
+                <span style={{
+                    position: 'absolute', top: -20, left: 0,
+                    background: 'rgba(14,165,233,0.9)', color: '#fff',
+                    fontSize: '0.58rem', fontWeight: 700, padding: '2px 7px',
+                    borderRadius: '4px', whiteSpace: 'nowrap'
+                }}>{box.name}</span>
+            </div>
+        ))}
+    </>
+)}
 
                                 {comparisonMode === 'split' && (
                                     <>
@@ -1559,125 +1572,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                 {isGoldenLoading ? 'Analysing...' : 'φ Analyse Golden Ratio Now'}
                             </button>
 
-                            {/* Golden Ratio Results Panel */}
-                            {goldenRatioData && !goldenRatioData.error && (
-                                <div style={{
-                                    background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.3)',
-                                    borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <h4 style={{ color: '#fbbf24', margin: 0, fontSize: '0.88rem', fontWeight: 700 }}>φ Golden Ratio Analysis</h4>
-                                        <button
-                                            onClick={() => setShowGoldenLines(v => !v)}
-                                            style={{
-                                                fontSize: '0.68rem', padding: '3px 8px', borderRadius: 4,
-                                                border: '1px solid rgba(251,191,36,0.4)',
-                                                background: showGoldenLines ? 'rgba(251,191,36,0.15)' : 'transparent',
-                                                color: '#fbbf24', cursor: 'pointer', fontWeight: 600
-                                            }}
-                                        >
-                                            {showGoldenLines ? '— Lines On' : '— Lines Off'}
-                                        </button>
-                                    </div>
-
-                                    <div style={{
-                                        display: 'flex', gap: 6, padding: 3,
-                                        background: 'rgba(0,0,0,0.25)', borderRadius: 8,
-                                        border: '1px solid rgba(251,191,36,0.15)'
-                                    }}>
-                                        {['reference', 'choice'].map(mode => (
-                                            <button
-                                                key={mode} onClick={() => setGoldenRatioPresentationMode(mode)}
-                                                style={{
-                                                    flex: 1, padding: '6px 8px', borderRadius: 6, border: 'none',
-                                                    background: goldenRatioPresentationMode === mode ? '#fbbf24' : 'transparent',
-                                                    color: goldenRatioPresentationMode === mode ? '#1a1300' : 'var(--text-muted)',
-                                                    fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer'
-                                                }}
-                                            >
-                                                {mode === 'reference' ? 'Reference Only' : 'Choice — Apply'}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: -6, lineHeight: 1.4 }}>
-                                        {goldenRatioPresentationMode === 'reference'
-                                            ? 'Showing φ deviations as a passive reference — landmarks are not changed.'
-                                            : 'You can apply suggested φ corrections directly to the landmarks below.'}
-                                    </div>
-
-                                    <div style={{
-                                        background: 'rgba(251,191,36,0.08)', borderRadius: 8,
-                                        padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-                                    }}>
-                                        <div>
-                                            <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Harmony Score</div>
-                                            <div style={{
-                                                color: goldenRatioData.harmonyScore >= 80 ? '#34d399'
-                                                    : goldenRatioData.harmonyScore >= 60 ? '#fbbf24' : '#f87171',
-                                                fontWeight: 700, fontSize: '1.6rem', fontFamily: 'monospace'
-                                            }}>
-                                                {goldenRatioData.harmonyScore}
-                                                <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>/100</span>
-                                            </div>
-                                        </div>
-                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', maxWidth: 160, textAlign: 'right', lineHeight: 1.5 }}>
-                                            {goldenRatioData.overallAssessment}
-                                        </div>
-                                    </div>
-
-                                    {Object.values(goldenRatioData.ratios || {}).map((r, i) => (
-                                        <div key={i} style={{
-                                            padding: '8px 12px', borderRadius: 6,
-                                            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)'
-                                        }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                                <span style={{ color: 'var(--text-main)', fontSize: '0.78rem', fontWeight: 500 }}>{r.label}</span>
-                                                <span style={{
-                                                    fontSize: '0.68rem', padding: '2px 7px', borderRadius: 12,
-                                                    background: r.within_norm ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
-                                                    color: r.within_norm ? '#34d399' : '#f87171', fontWeight: 600
-                                                }}>
-                                                    {r.within_norm ? '✓ Within norm' : '⚠ Deviation'}
-                                                </span>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem' }}>
-                                                <span style={{ color: 'var(--text-muted)' }}>Current: <b style={{ color: 'var(--text-main)' }}>{r.current}</b></span>
-                                                <span style={{ color: 'var(--text-muted)' }}>Ideal φ: <b style={{ color: '#fbbf24' }}>{r.ideal}</b></span>
-                                                <span style={{ color: 'var(--text-muted)' }}>Δ: <b style={{ color: r.within_norm ? '#34d399' : '#f87171' }}>{r.deviation_mm} mm</b></span>
-                                            </div>
-                                            {!r.within_norm && (
-                                                <div style={{ marginTop: 8 }}>
-                                                    <div style={{ fontSize: '0.72rem', color: 'rgba(251,191,36,0.9)', fontWeight: 600, marginBottom: 4 }}>
-                                                        Required correction: {r.deviation_mm} mm
-                                                    </div>
-                                                    <div style={{ fontSize: '0.7rem', color: 'rgba(251,191,36,0.65)', lineHeight: 1.5 }}>
-                                                        {r.label === 'Lower / Upper Face Height'
-                                                            ? `→ Move Gnathion and Menton ${r.deviation_mm}mm ${r.current > r.ideal ? 'superiorly (up)' : 'inferiorly (down)'} to reach φ ratio`
-                                                            : r.label === 'Jaw Width / Face Width'
-                                                            ? `→ Move Gonion Left and Gonion Right ${r.deviation_mm}mm ${r.current > r.ideal ? 'inward (medially)' : 'outward (laterally)'} to reach φ ratio`
-                                                            : `→ Adjust ${r.label} landmarks by ${r.deviation_mm}mm to reach φ ratio`}
-                                                    </div>
-                                                    {goldenRatioPresentationMode === 'choice' && (
-                                                        <button
-                                                            onClick={() => handleApplyGoldenRatioCorrection(r)}
-                                                            disabled={isSimulating}
-                                                            style={{
-                                                                marginTop: 8, width: '100%', padding: '7px 10px', borderRadius: 6,
-                                                                border: '1px solid rgba(251,191,36,0.4)',
-                                                                background: 'rgba(251,191,36,0.12)', color: '#fbbf24',
-                                                                fontSize: '0.72rem', fontWeight: 700,
-                                                                cursor: isSimulating ? 'not-allowed' : 'pointer'
-                                                            }}
-                                                        >
-                                                            ✓ Apply This Correction
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            
 
                             {/* AI Procedure Recommendation Panel */}
                             {(isAnalyzing || analysis || analysisError) && (
@@ -1717,7 +1612,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
 
                                     {analysis && !analysis.insufficient && (<>
                                         <div style={{ background: 'rgba(56,189,248,0.08)', borderRadius: 6, padding: '10px 12px' }}>
-                                            <div style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.92rem' }}>{analysis.procedure}</div>
+                                            <div style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.92rem' }}>{effectiveProcedure}</div>
                                             {analysis.classification && (
                                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: 3 }}>{analysis.classification}</div>
                                             )}
@@ -1744,7 +1639,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                         </div>
 
                                         <button
-                                            onClick={() => handleApplyRecommendation(analysis.procedure)}
+                                            onClick={() => handleApplyRecommendation(effectiveProcedure)}
                                             disabled={isSimulating}
                                             style={{
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -1820,14 +1715,14 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                                                 </div>
                                             </div>
                                         )}
-
-                                        {analysis.top3?.filter(t => t.procedure !== 'Golden Ratio Optimization' && t.procedure !== analysis.procedure).length > 0 && (
+                                        
+                                        {analysis.top3?.filter(t => t.procedure !== 'Golden Ratio Optimization' && t.procedure !== effectiveProcedure).length > 0 && (
                                         <details style={{ marginTop: 4 }}>
                                             <summary style={{ fontSize: '0.72rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
                                                 Other possibilities
                                             </summary>
                                             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                                {analysis.top3.filter(t => t.procedure !== 'Golden Ratio Optimization' && t.procedure !== analysis.procedure).map((t, i) => (
+                                                {analysis.top3.filter(t => t.procedure !== 'Golden Ratio Optimization' && t.procedure !== effectiveProcedure).map((t, i) => (
                                                         <div key={i} style={{
                                                             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                                             gap: 8, fontSize: '0.73rem', color: 'var(--text-muted)',
@@ -1970,6 +1865,125 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
                             Calibrate the image to enable simulation actions.
                         </div>
                     )}
+                    {/* Golden Ratio Results Panel */}
+                            {goldenRatioData && !goldenRatioData.error && (
+                                <div style={{
+                                    background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.3)',
+                                    borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <h4 style={{ color: '#fbbf24', margin: 0, fontSize: '0.88rem', fontWeight: 700 }}>φ Golden Ratio Analysis</h4>
+                                        <button
+                                            onClick={() => setShowGoldenLines(v => !v)}
+                                            style={{
+                                                fontSize: '0.68rem', padding: '3px 8px', borderRadius: 4,
+                                                border: '1px solid rgba(251,191,36,0.4)',
+                                                background: showGoldenLines ? 'rgba(251,191,36,0.15)' : 'transparent',
+                                                color: '#fbbf24', cursor: 'pointer', fontWeight: 600
+                                            }}
+                                        >
+                                            {showGoldenLines ? '— Lines On' : '— Lines Off'}
+                                        </button>
+                                    </div>
+
+                                    <div style={{
+                                        display: 'flex', gap: 6, padding: 3,
+                                        background: 'rgba(0,0,0,0.25)', borderRadius: 8,
+                                        border: '1px solid rgba(251,191,36,0.15)'
+                                    }}>
+                                        {['reference', 'choice'].map(mode => (
+                                            <button
+                                                key={mode} onClick={() => setGoldenRatioPresentationMode(mode)}
+                                                style={{
+                                                    flex: 1, padding: '6px 8px', borderRadius: 6, border: 'none',
+                                                    background: goldenRatioPresentationMode === mode ? '#fbbf24' : 'transparent',
+                                                    color: goldenRatioPresentationMode === mode ? '#1a1300' : 'var(--text-muted)',
+                                                    fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer'
+                                                }}
+                                            >
+                                                {mode === 'reference' ? 'Reference Only' : 'Choice — Apply'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: -6, lineHeight: 1.4 }}>
+                                        {goldenRatioPresentationMode === 'reference'
+                                            ? 'Showing φ deviations as a passive reference — landmarks are not changed.'
+                                            : 'You can apply suggested φ corrections directly to the landmarks below.'}
+                                    </div>
+
+                                    <div style={{
+                                        background: 'rgba(251,191,36,0.08)', borderRadius: 8,
+                                        padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                    }}>
+                                        <div>
+                                            <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Harmony Score</div>
+                                            <div style={{
+                                                color: goldenRatioData.harmonyScore >= 80 ? '#34d399'
+                                                    : goldenRatioData.harmonyScore >= 60 ? '#fbbf24' : '#f87171',
+                                                fontWeight: 700, fontSize: '1.6rem', fontFamily: 'monospace'
+                                            }}>
+                                                {goldenRatioData.harmonyScore}
+                                                <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>/100</span>
+                                            </div>
+                                        </div>
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', maxWidth: 160, textAlign: 'right', lineHeight: 1.5 }}>
+                                            {goldenRatioData.overallAssessment}
+                                        </div>
+                                    </div>
+
+                                    {Object.values(goldenRatioData.ratios || {}).map((r, i) => (
+                                        <div key={i} style={{
+                                            padding: '8px 12px', borderRadius: 6,
+                                            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)'
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                <span style={{ color: 'var(--text-main)', fontSize: '0.78rem', fontWeight: 500 }}>{r.label}</span>
+                                                <span style={{
+                                                    fontSize: '0.68rem', padding: '2px 7px', borderRadius: 12,
+                                                    background: r.within_norm ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
+                                                    color: r.within_norm ? '#34d399' : '#f87171', fontWeight: 600
+                                                }}>
+                                                    {r.within_norm ? '✓ Within norm' : '⚠ Deviation'}
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem' }}>
+                                                <span style={{ color: 'var(--text-muted)' }}>Current: <b style={{ color: 'var(--text-main)' }}>{r.current}</b></span>
+                                                <span style={{ color: 'var(--text-muted)' }}>Ideal φ: <b style={{ color: '#fbbf24' }}>{r.ideal}</b></span>
+                                                <span style={{ color: 'var(--text-muted)' }}>Δ: <b style={{ color: r.within_norm ? '#34d399' : '#f87171' }}>{r.deviation_mm} mm</b></span>
+                                            </div>
+                                            {!r.within_norm && (
+                                                <div style={{ marginTop: 8 }}>
+                                                    <div style={{ fontSize: '0.72rem', color: 'rgba(251,191,36,0.9)', fontWeight: 600, marginBottom: 4 }}>
+                                                        Required correction: {r.deviation_mm} mm
+                                                    </div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'rgba(251,191,36,0.65)', lineHeight: 1.5 }}>
+                                                        {r.label === 'Lower / Upper Face Height'
+                                                            ? `→ Move Gnathion and Menton ${r.deviation_mm}mm ${r.current > r.ideal ? 'superiorly (up)' : 'inferiorly (down)'} to reach φ ratio`
+                                                            : r.label === 'Jaw Width / Face Width'
+                                                            ? `→ Move Gonion Left and Gonion Right ${r.deviation_mm}mm ${r.current > r.ideal ? 'inward (medially)' : 'outward (laterally)'} to reach φ ratio`
+                                                            : `→ Adjust ${r.label} landmarks by ${r.deviation_mm}mm to reach φ ratio`}
+                                                    </div>
+                                                    {goldenRatioPresentationMode === 'choice' && (
+                                                        <button
+                                                            onClick={() => handleApplyGoldenRatioCorrection(r)}
+                                                            disabled={isSimulating}
+                                                            style={{
+                                                                marginTop: 8, width: '100%', padding: '7px 10px', borderRadius: 6,
+                                                                border: '1px solid rgba(251,191,36,0.4)',
+                                                                background: 'rgba(251,191,36,0.12)', color: '#fbbf24',
+                                                                fontSize: '0.72rem', fontWeight: 700,
+                                                                cursor: isSimulating ? 'not-allowed' : 'pointer'
+                                                            }}
+                                                        >
+                                                            ✓ Apply This Correction
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                 </div>
 
                 {/* 3D Viewer Panel */}
