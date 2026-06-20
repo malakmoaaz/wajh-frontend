@@ -296,7 +296,7 @@ export default function AdminDashboard() {
     const maxProc = Math.max(...Object.values(procCounts), 1);
 
     const navItems = [
-        { id: 'patients',  label: 'Patients',    icon: '👤' },
+        { id: 'patients',  label: 'Patients',    icon: '◉' },
         { id: 'sims',      label: 'Simulations', icon: '◈' },
         { id: 'analytics', label: 'Analytics',   icon: '◱' },
     ];
@@ -367,7 +367,7 @@ export default function AdminDashboard() {
                                             </tr>
                                         ))}
                                         {filteredPatients.length===0 && (
-                                            <tr><td colSpan={6}><div className="empty"><div className="empty-icon">👤</div><div>No patients yet — add your first patient</div></div></td></tr>
+                                            <tr><td colSpan={6}><div className="empty"><div className="empty-icon">◉</div><div>No patients yet — add your first patient</div></div></td></tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -498,7 +498,7 @@ export default function AdminDashboard() {
                         <div style={{ background:'var(--bg3)', borderRadius:8, padding:'14px 16px', marginBottom:20 }}>
                             <p style={{ fontSize:'0.75rem', color:'var(--muted)', marginBottom:8 }}>
                                 {selectedPatient.userId
-                                    ? '✓ Linked — this patient can see their case in the Patient View.'
+                                    ? 'Linked — this patient can see their case in the Patient View.'
                                     : 'Link this record to the patient\'s login (email) so they can see their result and notes.'}
                             </p>
                             {!selectedPatient.userId && (

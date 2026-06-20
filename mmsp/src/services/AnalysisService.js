@@ -5,7 +5,7 @@
  * Falls back to the Express rule engine if ML server is down.
  */
 
-const API_URL = import.meta.env.VITE_API_URL    || 'http://localhost:4000/api';
+const API_URL = import.meta.env.VITE_API_URL    || 'http://localhost:4000';
 const ML_URL  = import.meta.env.VITE_ML_URL     || 'http://localhost:5001';
 
 export const AnalysisService = {
@@ -59,7 +59,7 @@ export const AnalysisService = {
     },
 
     async _callRuleEngine(initialLandmarks, modifiedLandmarks, calibrationData, imageSize) {
-        const res = await fetch(`${API_URL}/analyze`, {
+        const res = await fetch(`${API_URL}/api/analyze`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
