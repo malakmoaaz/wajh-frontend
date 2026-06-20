@@ -5,9 +5,10 @@ import { mapRecommendationToPresetId, getPatientFriendlyInfo } from '../services
 
 const card = {
     background: 'var(--bg-surface)',
-    border: '1px solid var(--border-medium)',
-    borderRadius: 12,
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 14,
     padding: 24,
+    transition: 'border-color 0.2s',
 };
 
 export default function PatientView() {
@@ -86,7 +87,7 @@ export default function PatientView() {
                             <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 6 }}>
                                 Recommended Procedure
                             </div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>{procedureLabel}</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 700, background: 'linear-gradient(135deg, #82B4DA, #4178AA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{procedureLabel}</div>
                             {latestSim?.confidence != null && (
                                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4 }}>
                                     Simulation confidence: {latestSim.confidence}%

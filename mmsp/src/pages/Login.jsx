@@ -170,14 +170,14 @@ export default function Login() {
               <select
                 value={role} onChange={(e) => setRole(e.target.value)}
                 style={{
-                  width: '100%', padding: '14px 16px', backgroundColor: '#0e1420',
-                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff',
+                  width: '100%', padding: '14px 16px', backgroundColor: 'var(--bg-surface)',
+                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#1b3461',
                   fontSize: '14px', outline: 'none', transition: 'all 0.3s', boxSizing: 'border-box',
                   cursor: 'pointer'
                 }}
               >
-                <option value="DOCTOR" style={{ background: '#0e1420' }}>Doctor</option>
-                <option value="PATIENT" style={{ background: '#0e1420' }}>Patient</option>
+                <option value="DOCTOR" style={{ background: 'var(--bg-surface)', color: '#1b3461' }}>Doctor</option>
+                <option value="PATIENT" style={{ background: 'var(--bg-surface)', color: '#1b3461' }}>Patient</option>
               </select>
             )}
 
@@ -207,10 +207,11 @@ export default function Login() {
             <button
               type="submit" disabled={loading}
               style={{
-                width: '100%', padding: '14px 0', marginTop: '6px', backgroundColor: 'rgba(255,255,255,0.1)',
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff',
-                fontSize: '12px', fontWeight: 500, letterSpacing: '0.2em', textTransform: 'uppercase',
-                cursor: 'pointer', transition: 'all 0.3s'
+                width: '100%', padding: '14px 0', marginTop: '6px',
+                background: 'linear-gradient(135deg, var(--navy-500) 0%, var(--navy-400) 100%)',
+                border: 'none', borderRadius: '12px', color: '#fff',
+                fontSize: '0.82rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase',
+                cursor: 'pointer', transition: 'all 0.25s', boxShadow: '0 2px 10px rgba(45,90,142,0.35)'
               }}
             >
               {loading ? 'Processing…' : (authMode === 'login' ? 'Sign In' : 'Create Account')}

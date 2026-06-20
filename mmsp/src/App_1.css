@@ -1,0 +1,8 @@
+/* App.css — minimal, not used for layout; index.css handles all theming */
+#root {
+  /* Remove Vite default max-width + centering — app is full-screen */
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}

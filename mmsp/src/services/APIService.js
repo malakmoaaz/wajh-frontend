@@ -43,13 +43,13 @@ export const APIService = {
   createPatient: (patient) =>
     request('/api/patients', { method: 'POST', body: JSON.stringify(patient) }),
   updatePatient: (id, fields) =>
-    request(`/api/patients/${id}`, { method: 'PATCH', body: JSON.stringify(fields) }),
+    request(`/api/patients/${id}`, { method: 'PUT', body: JSON.stringify(fields) }),
 
   // Cases & Simulations (doctor-facing)
   createCase: (patientId, payload) =>
-    request(`/api/patients/${patientId}/cases`, { method: 'POST', body: JSON.stringify(payload) }),
+    request('/api/cases', { method: 'POST', body: JSON.stringify({ patientId, ...payload }) }),
   createSimulation: (caseId, payload) =>
-    request(`/api/cases/${caseId}/simulations`, { method: 'POST', body: JSON.stringify(payload) }),
+    request('/api/simulations', { method: 'POST', body: JSON.stringify({ caseId, ...payload }) }),
 
   // Patient View (patient-facing)
   patientMe: () => request('/api/patient/me'),

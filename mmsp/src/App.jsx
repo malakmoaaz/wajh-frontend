@@ -28,7 +28,7 @@ function SplashScreen({ onDone }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
-      background: '#0a0e17',
+      background: '#ffffff',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       transition: 'opacity 0.8s ease',
@@ -39,7 +39,7 @@ function SplashScreen({ onDone }) {
         transition: 'all 0.9s cubic-bezier(0.34, 1.56, 0.64, 1)',
         transform: phase === 'logo' ? 'scale(0.6)' : 'scale(1)',
         opacity: phase === 'logo' ? 0 : 1,
-        filter: 'drop-shadow(0 0 40px rgba(56,189,248,0.3))',
+        filter: 'drop-shadow(0 0 40px rgba(27,52,97,0.15))',
       }}>
         <img
           src={LOGO_SRC}
@@ -61,7 +61,7 @@ function SplashScreen({ onDone }) {
         textAlign: 'center',
       }}>
         <div style={{
-          fontSize: '1rem', color: '#64748b',
+          fontSize: '1rem', color: '#4a6fa5',
           letterSpacing: '0.15em', textTransform: 'uppercase',
           fontFamily: 'DM Sans, sans-serif', fontWeight: 500,
         }}>
@@ -69,7 +69,7 @@ function SplashScreen({ onDone }) {
         </div>
         <div style={{
           width: 60, height: 2,
-          background: 'linear-gradient(90deg, transparent, #38bdf8, transparent)',
+          background: 'linear-gradient(90deg, transparent, #2b5fad, transparent)',
           margin: '12px auto 0',
           borderRadius: 2,
         }} />
@@ -85,7 +85,7 @@ function SplashScreen({ onDone }) {
         {[0, 1, 2].map(i => (
           <div key={i} style={{
             width: 7, height: 7, borderRadius: '50%',
-            background: '#38bdf8',
+            background: '#2b5fad',
             animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
             opacity: 0.6,
           }} />
@@ -164,13 +164,13 @@ function App() {
     <>
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
       
-        <div className="min-h-screen bg-[#0a0e17] text-white flex flex-col">
+        <div className="min-h-screen bg-white text-[#1b3461] flex flex-col">
         {/* Top Header / Navbar */}
-        <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between bg-[#0e1420]">
+        <header className="border-b border-[#1b3461]/10 px-6 py-4 flex items-center justify-between bg-[#f0f5fc]">
           <div className="flex items-center gap-3">
-            <span className="font-serif text-xl tracking-widest text-white uppercase">WAJH</span>
-            <span className="text-xs text-white/40 tracking-wider border-l border-white/20 pl-3 hidden sm:inline">
-              Maxillofacial Planning Environment
+            <span className="font-serif text-xl tracking-widest text-[#1b3461] uppercase">WAJH</span>
+            <span className="text-xs text-[#4a6fa5] tracking-wider border-l border-[#1b3461]/20 pl-3 hidden sm:inline">
+              AI Predicts, Doctor Decides
             </span>
           </div>
 
@@ -178,7 +178,7 @@ function App() {
             {uploadedImage && !showAdmin && (
               <button
                 onClick={handleNewPatient}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm tracking-wide transition-colors border border-white/5"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1b3461]/5 hover:bg-[#1b3461]/10 text-sm tracking-wide transition-colors border border-[#1b3461]/5"
               >
                 <RotateCcw size={16} />
                 New Patient
@@ -186,7 +186,7 @@ function App() {
             )}
             <button 
               onClick={() => setShowAdmin(!showAdmin)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm tracking-wide transition-colors border border-white/5"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1b3461]/5 hover:bg-[#1b3461]/10 text-sm tracking-wide transition-colors border border-[#1b3461]/5"
             >
               <LayoutDashboard size={16} />
               {showAdmin ? "Workspace" : "Admin Dashboard"}
@@ -202,7 +202,7 @@ function App() {
             // Step 2: Surgical workspace — WajhCanvas lays out its own
             // Surgical Controls / Canvas / Simulation columns internally,
             // so it needs the full width here, not a shared grid column.
-              <div className="bg-[#0e1420] rounded-xl border border-white/5 overflow-hidden shadow-2xl h-full">              <WajhCanvas
+              <div className="bg-[#f0f5fc] rounded-xl border border-[#1b3461]/5 overflow-hidden shadow-2xl h-full">              <WajhCanvas
                 imageSrc={uploadedImage}
                 initialLandmarks={landmarks}
                 initialMeshLandmarks={meshLandmarks}
@@ -213,18 +213,18 @@ function App() {
             <div className="flex flex-col items-center justify-center text-center gap-6 max-w-xl mx-auto py-10">
               <img src={LOGO_SRC} alt="WAJH" style={{ width: 140, height: 'auto', borderRadius: 16 }} />
               <h1 className="text-4xl font-bold leading-tight">
-                Maxillofacial<br />
-                <span className="bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">Morphology</span> Surgical Prediction
+                AI Predicts,<br />
+                <span className="bg-gradient-to-r from-[#1b3461] to-[#4a90d9] bg-clip-text text-transparent">Doctor</span> Decides
               </h1>
-              <p className="text-white/40 text-sm">
+              <p className="text-[#4a6fa5] text-sm">
                 Intelligent reconstructive simulation for post-maxillofacial skeletal procedures
               </p>
 
-              <div className="bg-[#0e1420] rounded-xl border border-white/5 p-6 shadow-2xl w-full">
+              <div className="bg-[#f0f5fc] rounded-xl border border-[#1b3461]/5 p-6 shadow-2xl w-full">
                 {isDetecting ? (
                   <div className="flex flex-col items-center gap-3 py-6">
                     <div className="spinner" />
-                    <p className="text-sm text-white/60">Detecting facial landmarks...</p>
+                    <p className="text-sm text-[#4a6fa5]">Detecting facial landmarks...</p>
                   </div>
                 ) : (
                   <ImageUploader onImageUpload={handleImageUpload} />
