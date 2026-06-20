@@ -30,6 +30,7 @@ export const AnalysisService = {
                     ...mlResult,
                     measurements:    ruleResult?.measurements    || [],
                     targetLandmarks: ruleResult?.targetLandmarks || [],
+                    recommendedLandmarkMoves: ruleResult?.recommendedLandmarkMoves || [],
                     reasoning:       this._buildReasoning(mlResult, ruleResult),
                     classification:  ruleResult?.classification  || mlResult.procedure,
                 };

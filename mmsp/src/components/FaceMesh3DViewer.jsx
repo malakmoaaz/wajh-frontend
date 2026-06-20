@@ -65,7 +65,7 @@ export function FaceMesh3DViewer({ landmarks, activeMeshIndex }) {
                     height: '260px',
                     borderRadius: '8px',
                     overflow: 'hidden',
-                    background: 'radial-gradient(circle at top, rgba(34,211,238,0.07), rgba(0,0,0,0.15))'
+                    background: 'radial-gradient(circle at top, rgba(34,211,238,0.18), #0a0e17 75%)'
                 }}
             />
             <p style={{ color: 'var(--text-dim)', fontSize: '0.72rem', margin: 0 }}>

@@ -6,7 +6,7 @@ import React from 'react';
  */
 
 const labelStyle = { display: 'block', color: 'var(--text-muted)', marginBottom: '4px', fontSize: '0.8rem' };
-const inputStyle = { width: '100%', padding: '6px', background: '#333', border: '1px solid #444', color: '#fff', borderRadius: '4px', fontSize: '0.9rem' };
+const inputStyle = { width: '100%', padding: '6px', background: 'var(--bg-elevated)', border: '1px solid var(--border-medium)', color: 'var(--text-main)', borderRadius: '4px', fontSize: '0.9rem' };
 
 export function SurgicalReadout({
     activeLandmark,

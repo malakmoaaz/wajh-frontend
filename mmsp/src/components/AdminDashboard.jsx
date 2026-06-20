@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 // All requests need credentials:'include' so the httpOnly auth cookie is sent
 // cross-origin (Vercel frontend ↔ Railway backend) — none of the calls below
@@ -20,10 +20,10 @@ const css = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #0a0e17; --bg2: #111827; --bg3: #1a2235;
-    --border: rgba(255,255,255,0.07);
-    --primary: #38bdf8; --gold: #fbbf24; --green: #34d399; --red: #f87171;
-    --text: #e2e8f0; --muted: #64748b;
+    --bg: #07111D; --bg2: #0C1829; --bg3: #162236;
+    --border: rgba(45,90,142,0.14);
+    --primary: #5592C5; --gold: #fbbf24; --green: #34d399; --red: #f87171;
+    --text: #D6E8F7; --muted: #6A90B0;
     --font-head: 'DM Serif Display', serif;
     --font-body: 'DM Sans', sans-serif;
     --font-mono: 'DM Mono', monospace;
@@ -32,12 +32,12 @@ const css = `
   .app { display: flex; min-height: 100vh; }
   .sidebar { width: 240px; min-height: 100vh; background: var(--bg2); border-right: 1px solid var(--border); padding: 28px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; }
   .logo { padding: 0 24px 28px; border-bottom: 1px solid var(--border); }
-  .logo h1 { font-family: var(--font-head); font-size: 1.8rem; color: var(--primary); }
+  .logo h1 { font-family: var(--font-head); font-size: 1.8rem; background: linear-gradient(135deg, #B8D5EC 0%, #5592C5 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
   .logo p { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
   .nav { padding: 16px 12px; flex: 1; }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; color: var(--muted); font-size: 0.875rem; font-weight: 500; transition: all 0.15s; margin-bottom: 2px; }
   .nav-item:hover { background: var(--bg3); color: var(--text); }
-  .nav-item.active { background: rgba(56,189,248,0.12); color: var(--primary); }
+  .nav-item.active { background: rgba(45,90,142,0.18); color: var(--primary); border-left: 2px solid var(--primary); }
   .main { margin-left: 240px; flex: 1; padding: 32px 40px; }
   .page-header { margin-bottom: 28px; display: flex; align-items: flex-start; justify-content: space-between; }
   .page-header h2 { font-family: var(--font-head); font-size: 2rem; }
@@ -123,7 +123,7 @@ function NewPatientModal({ onClose, onSaved }) {
         if (!form.firstName || !form.lastName) { setError('First and last name are required.'); return; }
         setSaving(true);
         try {
-            const data = await authedFetch('/patients', {
+            const data = await authedFetch('/api/patients', {
                 method: 'POST',
                 body: JSON.stringify(form)
             });
@@ -209,8 +209,8 @@ export default function AdminDashboard() {
         setLoading(true);
         try {
             const [p, s] = await Promise.all([
-                authedFetch('/patients').catch(() => []),
-                authedFetch('/simulations').catch(() => []),
+                authedFetch('/api/patients').catch(() => []),
+                authedFetch('/api/simulations').catch(() => []),
             ]);
             setPatients(Array.isArray(p) ? p : []);
             setSims(Array.isArray(s) ? s : []);
@@ -228,7 +228,7 @@ export default function AdminDashboard() {
         setLinkStatus('');
         setNotesDraft(p.notes || '');
         try {
-            const d = await authedFetch(`/patients/${p.id}`);
+            const d = await authedFetch(`/api/patients/${p.id}`);
             setPatientDetail(d);
         } catch(e) { console.error(e); }
         setLoadingDetail(false);
@@ -238,9 +238,9 @@ export default function AdminDashboard() {
         if (!linkEmail || !selectedPatient) return;
         setLinkStatus('Linking...');
         try {
-            const updated = await authedFetch(`/patients/${selectedPatient.id}`, {
-                method: 'PATCH',
-                body: JSON.stringify({ patientAccountEmail: linkEmail }),
+            const updated = await authedFetch(`/api/patients/${selectedPatient.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ email: linkEmail }),
             });
             setSelectedPatient(updated);
             setPatientDetail(prev => ({ ...prev, ...updated }));
@@ -255,8 +255,8 @@ export default function AdminDashboard() {
         if (!selectedPatient) return;
         setSavingNotes(true);
         try {
-            const updated = await authedFetch(`/patients/${selectedPatient.id}`, {
-                method: 'PATCH',
+            const updated = await authedFetch(`/api/patients/${selectedPatient.id}`, {
+                method: 'PUT',
                 body: JSON.stringify({ notes: notesDraft }),
             });
             setSelectedPatient(updated);
@@ -271,7 +271,7 @@ export default function AdminDashboard() {
         setSimDetail(null);
         setLoadingDetail(true);
         try {
-            const d = await authedFetch(`/simulations/${sim.id}`);
+            const d = await authedFetch(`/api/simulations/${sim.id}`);
             setSimDetail(d);
         } catch(e) { console.error(e); }
         setLoadingDetail(false);
@@ -279,7 +279,7 @@ export default function AdminDashboard() {
 
     async function deletePatient(id) {
         if (!confirm('Delete this patient and all their data?')) return;
-        await authedFetch(`/patients/${id}`, { method: 'DELETE' });
+        await authedFetch(`/api/patients/${id}`, { method: 'DELETE' });
         setSelectedPatient(null); setPatientDetail(null);
         fetchAll();
     }

@@ -30,11 +30,11 @@ export function ImageUploader({ onImageUpload }) {
             </div>
 
             <div style={{ textAlign: 'center' }}>
-                <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 700 }}>
+                <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-main)', fontSize: '1rem', fontWeight: 700, letterSpacing: '0.02em' }}>
                     Upload Patient Photo
                 </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                    Drag and drop or click to browse files
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.55 }}>
+                    Drag & drop or click to browse — front-facing photo works best
                 </p>
                 <div style={{
                     marginTop: '12px',
