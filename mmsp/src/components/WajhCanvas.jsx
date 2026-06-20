@@ -223,6 +223,36 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         }
     }, [initialLandmarks]);
 
+    // ── HYBRID MANUAL + AI: live procedure recommendation ──────────────────
+    // Runs automatically the moment landmarks are available — giving an
+    // immediate AI-driven baseline read with zero doctor interaction — and
+    // again, debounced, every time the doctor manually adjusts a landmark.
+    // Both runs go through the same AnalysisService.analyze() call; the
+    // backend measures deviation of the CURRENT landmark state from the
+    // φ-ratio computed ideal, so the recommendation always reflects exactly
+    // where things stand: full deviation on first load, shrinking toward
+    // zero as the doctor corrects a landmark toward its computed target.
+    // Skipped during an active procedure-preset simulation, which already
+    // triggers its own analyze() call against the simulated outcome.
+    const analysisDebounceRef = useRef(null);
+    useEffect(() => {
+        if (!points?.length || !initialLandmarks?.length || !imgObj || isSimulating) return;
+        if (analysisDebounceRef.current) clearTimeout(analysisDebounceRef.current);
+        analysisDebounceRef.current = setTimeout(() => {
+            setIsAnalyzing(true);
+            AnalysisService.analyze(
+                initialLandmarks, points, calibrationData,
+                { width: imgObj.width, height: imgObj.height }
+            ).then(result => {
+                setAnalysis(result);
+                setAnalysisError(null);
+            }).catch(err => {
+                setAnalysisError('AI analysis unavailable: ' + err.message);
+            }).finally(() => setIsAnalyzing(false));
+        }, 600);
+        return () => { if (analysisDebounceRef.current) clearTimeout(analysisDebounceRef.current); };
+    }, [points, initialLandmarks, calibrationData, imgObj, isSimulating]);
+
     useEffect(() => {
         if (initialMeshLandmarks) {
             setMeshPoints(initialMeshLandmarks.map(p => ({ ...p })));
@@ -529,11 +559,11 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     // ========================================
     // HANDLERS: Simulation & Calibration
     // ========================================
-const handleSimulate = async (landmarkSet = points, procedureIdOverride = null, adaptiveTargets = null) => {        if (landmarkSet && typeof landmarkSet.preventDefault === 'function') landmarkSet = points;
+const handleSimulate = async (landmarkSet = points, procedureIdOverride = null, adaptiveTargets = null, useManualLandmarks = false) => {        if (landmarkSet && typeof landmarkSet.preventDefault === 'function') landmarkSet = points;
         const activeProcedureId = procedureIdOverride ?? selectedProcedureId;
         const activeProcedure = procedureIdOverride ? getProcedurePreset(procedureIdOverride) : selectedProcedure;
         setIsSimulating(true);
-        setSimulationStatus(`Rendering ${activeProcedure.label}...`);
+        setSimulationStatus(useManualLandmarks ? 'Rendering your manual landmark adjustments...' : `Rendering ${activeProcedure.label}...`);
         setSimulationError('');
         setShowComparisonSlider(false);
         setAnalysis(null);
@@ -541,17 +571,24 @@ const handleSimulate = async (landmarkSet = points, procedureIdOverride = null, 
         setGoldenRatioData(null);
         try {
             const originalPoints = initialLandmarks.map(p => ({ ...p }));
-            // If patient-specific targets from rule engine are available, use those
-// instead of fixed preset offsets — makes simulation adaptive per patient
-const procedureTargets = adaptiveTargets?.length
-    ? originalPoints.map(p => {
-        const t = adaptiveTargets.find(t => t.id === p.id);
-        return t ? { ...p, x: t.x, y: t.y } : p;
-    })
-    : buildProcedureSimulationLandmarks(
-        originalPoints, landmarkSet, activeProcedureId,
-        { intensity: procedureIntensity, width: imgObj.width, height: imgObj.height }
-    );
+            // Three ways procedureTargets can be built, in priority order:
+            // 1. useManualLandmarks: render EXACTLY where the doctor dragged each
+            //    landmark — no preset formula, no AI override. This is the doctor
+            //    manually deciding, full stop.
+            // 2. adaptiveTargets: the AI's rule-computed φ-ratio ideal positions
+            //    (from "Apply This Recommendation").
+            // 3. Default: the selected procedure preset's predefined offset formula.
+            const procedureTargets = useManualLandmarks
+                ? landmarkSet.map(p => ({ ...p }))
+                : adaptiveTargets?.length
+                    ? originalPoints.map(p => {
+                        const t = adaptiveTargets.find(t => t.id === p.id);
+                        return t ? { ...p, x: t.x, y: t.y } : p;
+                    })
+                    : buildProcedureSimulationLandmarks(
+                        originalPoints, landmarkSet, activeProcedureId,
+                        { intensity: procedureIntensity, width: imgObj.width, height: imgObj.height }
+                    );
             const result = await aiServiceRef.current.generateOutcome(
                 imgObj, originalPoints, procedureTargets,
                 { procedureId: activeProcedureId, intensity: procedureIntensity }
@@ -566,7 +603,7 @@ const procedureTargets = adaptiveTargets?.length
             );
             setSimulationConfidence(confidence);
             setSimulationConfidenceDetails(confidenceDetails);
-            setSimulationStatus(`Completed ${activeProcedure.label}.`);
+            setSimulationStatus(useManualLandmarks ? 'Completed — showing your manual landmark adjustments.' : `Completed ${activeProcedure.label}.`);
             setIsAnalyzing(true);
             AnalysisService.analyze(
                 originalPoints, procedureTargets, calibrationData,
@@ -588,6 +625,30 @@ const procedureTargets = adaptiveTargets?.length
     };
 
     const [applyNotice, setApplyNotice] = useState(null);
+
+    // Snaps ONE landmark to its rule-computed ideal target position — the
+    // per-row "Apply" button in the Procedure Recommendation list. The doctor
+    // can accept individual suggested corrections one at a time rather than
+    // the whole procedure at once.
+    const handleApplySingleLandmark = (landmarkId, targetX, targetY) => {
+        const idx = points.findIndex(p => p.id === landmarkId);
+        if (idx === -1) return;
+        const clamped = clampToValidRange(idx, targetX, targetY);
+        setPoints(prev => {
+            const next = [...prev];
+            next[idx] = patchPoint3DFields(next[idx], clamped.x, clamped.y);
+            return next;
+        });
+        setMeshPoints(prev => {
+            if (!prev?.length) return prev;
+            const sourcePoint = points[idx];
+            const meshIndex = sourcePoint?.mpId ?? sourcePoint?.index;
+            if (meshIndex === undefined || !prev[meshIndex]) return prev;
+            const next = [...prev];
+            next[meshIndex] = patchPoint3DFields(next[meshIndex], clamped.x, clamped.y);
+            return next;
+        });
+    };
 
     const handleApplyRecommendation = (procedureLabel) => {
     const presetId = mapRecommendationToPresetId(procedureLabel);
@@ -660,7 +721,7 @@ const procedureTargets = adaptiveTargets?.length
                 });
                 patientId = patient.id;
                 if (newPatientAccountEmail) {
-                    await APIService.updatePatient(patientId, { patientAccountEmail: newPatientAccountEmail });
+                    await APIService.updatePatient(patientId, { email: newPatientAccountEmail });
                 }
             } else if (!patientId) {
                 setSaveCaseStatus('Select a patient first.');
@@ -881,9 +942,15 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
         else catalog.push({ category: procedure.category, items: [procedure.catalogLabel || procedure.label] });
         return catalog;
         }, []);
-        const effectiveProcedure = analysis?.procedure === 'No Surgery Required'
-            ? (analysis.top3?.find(t => t.procedure !== 'No Surgery Required' && t.procedure !== 'Golden Ratio Optimization')?.procedure ?? analysis.procedure)
-            : analysis?.procedure ?? null;
+        // Show the model's actual top prediction as-is — including "No Surgery
+        // Required" when that's genuinely the result. Previously this silently
+        // swapped the headline to a lower-confidence surgical alternative from
+        // top3, which produced a contradictory display (e.g. a "Le Fort I +
+        // BSSO" title sitting directly above a "No Surgery Required"
+        // classification). Apply This Recommendation already degrades
+        // gracefully for "No Surgery Required" (see handleApplyRecommendation),
+        // so there's no need to hide it.
+        const effectiveProcedure = analysis?.procedure ?? null;
         const effectiveProcedureEntry = analysis?.top3?.find(t => t.procedure === effectiveProcedure);
     // ========================================
     // RENDER
@@ -1097,8 +1164,9 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                         {imgObj && (
         <div style={{
             position: 'relative',
-            width: '100%',
-            maxHeight: '100%',
+            width: 'auto',
+            height: '100%',
+            maxWidth: '100%',
             aspectRatio: `${imgObj.width} / ${imgObj.height}`,
             overflow: 'hidden',
             flexShrink: 0
@@ -1405,6 +1473,25 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                 {isSimulating ? `Simulating ${selectedProcedure.label}...` : `Simulate ${selectedProcedure.label}`}
                             </button>
 
+                            {hasLandmarkEdits && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleSimulate(points, selectedProcedureId, null, true)}
+                                    disabled={isSimulating}
+                                    title="Render the result using exactly where you dragged each landmark — no procedure preset, no AI override."
+                                    style={{
+                                        padding: '14px', fontSize: '0.85rem', borderRadius: '10px',
+                                        border: '1px solid var(--primary)', background: 'transparent',
+                                        color: 'var(--primary)', cursor: isSimulating ? 'not-allowed' : 'pointer',
+                                        fontWeight: 700, opacity: isSimulating ? 0.6 : 1,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        gap: '8px', width: '100%'
+                                    }}
+                                >
+                                    ✋ Preview My Manual Landmark Changes
+                                </button>
+                            )}
+
                             {!hasLandmarkEdits && (
                                 <div style={{
                                     padding: '10px 12px', borderRadius: '8px',
@@ -1685,6 +1772,39 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                             )}
                                         </div>
 
+                                        {analysis.recommendedLandmarkMoves?.length > 0 && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
+                                                    Landmarks to move (computed from φ-ratio cephalometric norms)
+                                                </div>
+                                                {analysis.recommendedLandmarkMoves.map((m) => (
+                                                    <div key={m.id} style={{
+                                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+                                                        padding: '8px 10px', background: 'rgba(56,189,248,0.06)',
+                                                        border: '1px solid rgba(56,189,248,0.18)', borderRadius: 6
+                                                    }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-main)' }}>{m.name}</span>
+                                                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                                                {m.deltaMm.toFixed(1)}mm — {m.direction}
+                                                            </span>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleApplySingleLandmark(m.id, m.targetX, m.targetY)}
+                                                            disabled={isSimulating}
+                                                            style={{
+                                                                flexShrink: 0, padding: '5px 10px', borderRadius: 6,
+                                                                border: '1px solid rgba(52,211,153,0.4)',
+                                                                background: 'rgba(52,211,153,0.12)', color: '#34d399',
+                                                                fontSize: '0.7rem', fontWeight: 700,
+                                                                cursor: isSimulating ? 'not-allowed' : 'pointer'
+                                                            }}
+                                                        >Apply</button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
                                         <button
                                             onClick={() => handleApplyRecommendation(effectiveProcedure)}
                                             disabled={isSimulating}
@@ -1697,7 +1817,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                                 cursor: isSimulating ? 'not-allowed' : 'pointer'
                                             }}
                                         >
-                                            ✓ Apply This Recommendation
+                                            ✓ {analysis.recommendedLandmarkMoves?.length > 0 ? 'Simulate Full Procedure' : 'Apply This Recommendation'}
                                         </button>
 
                                         {applyNotice && (
@@ -1983,8 +2103,8 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                             <button
                                 onClick={() => setInfoProcedure(null)}
                                 style={{
-                                    background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)',
-                                    color: '#e2e8f0', borderRadius: 8, width: 32, height: 32,
+                                    background: 'rgba(27,52,97,0.07)', border: '1px solid rgba(27,52,97,0.15)',
+                                    color: '#1b3461', borderRadius: 8, width: 32, height: 32,
                                     cursor: 'pointer', fontSize: '1rem',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                                 }}
@@ -1993,41 +2113,41 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
 
                         {(() => {
                             const info = PROCEDURE_INFO[infoProcedure.id];
-                            if (!info) return <p style={{ color: '#64748b', fontSize: '0.85rem' }}>{infoProcedure.summary}</p>;
+                            if (!info) return <p style={{ color: '#4a6fa5', fontSize: '0.85rem' }}>{infoProcedure.summary}</p>;
                             return (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                                     <div>
-                                        <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 }}>
+                                        <div style={{ fontSize: '0.68rem', color: '#4a6fa5', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 }}>
                                             What is this procedure?
                                         </div>
-                                        <p style={{ fontSize: '0.84rem', color: '#e2e8f0', lineHeight: 1.6, margin: 0 }}>{info.whatIsIt}</p>
+                                        <p style={{ fontSize: '0.84rem', color: '#1b3461', lineHeight: 1.6, margin: 0 }}>{info.whatIsIt}</p>
                                     </div>
                                     <div style={{ background: 'rgba(56,189,248,0.05)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 8, padding: '14px 16px' }}>
-                                        <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 }}>
+                                        <div style={{ fontSize: '0.68rem', color: '#4a6fa5', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 }}>
                                             When to use this procedure?
                                         </div>
-                                        <p style={{ fontSize: '0.84rem', color: '#e2e8f0', lineHeight: 1.6, margin: 0 }}>{info.whenToUse}</p>
+                                        <p style={{ fontSize: '0.84rem', color: '#1b3461', lineHeight: 1.6, margin: 0 }}>{info.whenToUse}</p>
                                     </div>
                                     <div style={{ display: 'flex', gap: 16 }}>
                                         <div style={{ flex: 1, background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: 8, padding: '10px 14px' }}>
-                                            <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>Indication</div>
+                                            <div style={{ fontSize: '0.65rem', color: '#4a6fa5', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>Indication</div>
                                             <div style={{ fontSize: '0.82rem', color: '#34d399', fontWeight: 600 }}>{info.indication}</div>
                                         </div>
                                         <div style={{ flex: 1, background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '10px 14px' }}>
-                                            <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>Recovery</div>
+                                            <div style={{ fontSize: '0.65rem', color: '#4a6fa5', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>Recovery</div>
                                             <div style={{ fontSize: '0.82rem', color: '#fbbf24', fontWeight: 600 }}>{info.recovery}</div>
                                         </div>
                                     </div>
                                     <div>
-                                        <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 10 }}>
+                                        <div style={{ fontSize: '0.68rem', color: '#4a6fa5', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 10 }}>
                                             Key landmarks to move
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                             {info.landmarks.map((lm, i) => (
                                                 <div key={i} style={{
                                                     display: 'flex', alignItems: 'center', gap: 10,
-                                                    padding: '8px 12px', background: 'rgba(255,255,255,0.03)',
-                                                    border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6
+                                                    padding: '8px 12px', background: 'rgba(27,52,97,0.03)',
+                                                    border: '1px solid rgba(27,52,97,0.1)', borderRadius: 6
                                                 }}>
                                                     <div style={{
                                                         width: 22, height: 22, borderRadius: '50%',
@@ -2035,7 +2155,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                                         color: '#38bdf8', fontSize: '0.7rem', fontWeight: 700,
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                                                     }}>{i + 1}</div>
-                                                    <span style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>{lm}</span>
+                                                    <span style={{ fontSize: '0.82rem', color: '#1b3461' }}>{lm}</span>
                                                 </div>
                                             ))}
                                         </div>
