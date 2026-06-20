@@ -1229,7 +1229,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                             alt="Original patient comparison overlay"
                             style={{
                                 position: 'absolute', inset: 0, height: '100%', width: '100%',
-                                objectFit: 'fill',
+                                objectFit: 'contain',
                                 clipPath: comparisonMode === 'split'
                                     ? `inset(0 ${100 - comparisonSplit}% 0 0)` : 'none',
                                 mixBlendMode: comparisonMode === 'difference' ? 'difference' : 'normal',
