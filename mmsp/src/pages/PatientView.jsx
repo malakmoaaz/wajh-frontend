@@ -76,7 +76,7 @@ export default function PatientView() {
                                 style={{ width: '100%', borderRadius: 10, display: 'block' }}
                             />
                             <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: 10, textAlign: 'center' }}>
-                                ⚠ This is a planning simulation, not a guarantee of your exact surgical outcome.
+                                This is a planning simulation, not a guarantee of your exact surgical outcome.
                             </p>
                         </div>
                     )}

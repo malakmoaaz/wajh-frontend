@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
-  const { login, register } = useAuth(); // 🟢 Destructured register function here
+  const { login, register } = useAuth(); // Destructured register function here
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';

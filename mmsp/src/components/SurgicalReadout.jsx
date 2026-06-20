@@ -189,7 +189,7 @@ export function SurgicalReadout({
                 {/* Horizontal Control */}
                 <div>
                     <label style={labelStyle}>
-                        Δ Horizontal (mm) {lockedAxis === 'y' && '🔒'}
+                        Δ Horizontal (mm) {lockedAxis === 'y' && '(locked)'}
                     </label>
                     {mode === 'precision' ? (
                         <input
@@ -216,7 +216,7 @@ export function SurgicalReadout({
                 {/* Vertical Control */}
                 <div>
                     <label style={labelStyle}>
-                        Δ Vertical (mm) {lockedAxis === 'x' && '🔒'}
+                        Δ Vertical (mm) {lockedAxis === 'x' && '(locked)'}
                     </label>
                     {mode === 'precision' ? (
                         <input
@@ -283,7 +283,7 @@ export function SurgicalReadout({
                     borderLeft: '3px solid var(--warning)',
                     backdropFilter: 'blur(4px)'
                 }}>
-                    <strong style={{ color: 'var(--warning)' }}>⚠ Est. Uncertainty: ±{((totalDist * (1 - activeLandmark.stiffness) * 0.2) + 0.5).toFixed(1)} mm</strong>
+                    <strong style={{ color: 'var(--warning)' }}>Est. Uncertainty: ±{((totalDist * (1 - activeLandmark.stiffness) * 0.2) + 0.5).toFixed(1)} mm</strong>
                     <p style={{ margin: '4px 0 0 0', fontSize: '0.7rem', opacity: 0.8 }}>
                         Based on tissue elasticity and detection confidence.
                     </p>

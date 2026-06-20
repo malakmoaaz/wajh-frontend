@@ -257,7 +257,7 @@ export function CalibrationModal({ imageObj, onConfirm, onCancel, detectedLandma
                 boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px var(--border-medium)'
             }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ margin: 0, color: 'var(--primary)' }}>⚠ Image Calibration Required</h2>
+                    <h2 style={{ margin: 0, color: 'var(--primary)' }}>Image Calibration Required</h2>
                     <button onClick={onCancel} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', transition: 'color var(--transition-fast)' }} onMouseEnter={(e) => e.target.style.color = 'var(--text-main)'} onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}>✕</button>
                 </div>
 

@@ -1022,7 +1022,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                             fontSize: '0.875rem',
                             backdropFilter: 'blur(4px)'
                         }}>
-                            ⚠ Calibration Required
+                            Calibration Required
                             <button
                                 onClick={() => setShowCalibration(true)}
                                 style={{
@@ -1183,7 +1183,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                     textAlign: 'center', backdropFilter: 'blur(8px)',
                     boxShadow: '0 4px 16px rgba(0,0,0,0.35)'
                 }}>
-                    ⚠ {rangeWarning}
+                    {rangeWarning}
                 </div>
             )}
 
@@ -1335,7 +1335,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                     textTransform: 'uppercase', letterSpacing: '0.08em',
                     width: '100%', backdropFilter: 'blur(4px)'
                 }}>
-                    ⚠ Clinical Planning Aid Only. Not for direct surgical guidance
+                    Clinical Planning Aid Only. Not for direct surgical guidance
                 </div>
             </div>
 
@@ -1488,7 +1488,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                         gap: '8px', width: '100%'
                                     }}
                                 >
-                                    ✋ Preview My Manual Landmark Changes
+                                    Preview My Manual Landmark Changes
                                 </button>
                             )}
 
@@ -1684,7 +1684,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                         <span style={{ color: 'var(--text-main)', fontSize: '0.75rem' }}>{r.label}</span>
                         <span style={{ fontSize: '0.64rem', padding: '1px 6px', borderRadius: 10, background: r.within_norm ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)', color: r.within_norm ? '#34d399' : '#f87171', fontWeight: 600 }}>
-                            {r.within_norm ? '✓ OK' : `⚠ ${r.deviation_mm}mm`}
+                            {r.within_norm ? 'OK' : `${r.deviation_mm}mm`}
                         </span>
                     </div>
                     {!r.within_norm && (
@@ -1699,7 +1699,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                     {!r.within_norm && goldenRatioPresentationMode === 'choice' && (
                         <button onClick={() => handleApplyGoldenRatioCorrection(r)} disabled={isSimulating}
                             style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.1)', color: '#fbbf24', fontSize: '0.68rem', fontWeight: 700, cursor: isSimulating ? 'not-allowed' : 'pointer' }}>
-                            ✓ Apply correction
+                            Apply correction
                         </button>
                     )}
                 </div>
@@ -1715,7 +1715,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                     borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <h4 style={{ color: '#38bdf8', margin: 0, fontSize: '0.88rem', fontWeight: 700 }}>⚕ Procedure Recommendation</h4>
+                                        <h4 style={{ color: '#38bdf8', margin: 0, fontSize: '0.88rem', fontWeight: 700 }}>Procedure Recommendation</h4>
                                         {analysis && (
                                             <button
                                                 onClick={() => setShowAiOverlay(v => !v)}
@@ -1767,7 +1767,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                                     padding: '2px 8px', borderRadius: 20, fontSize: '0.68rem', fontWeight: 600,
                                                     background: 'rgba(52,211,153,0.1)', color: '#34d399'
                                                 }}>
-                                                    ✓ ML + Rules Agree
+                                                    ML + Rules Agree
                                                 </div>
                                             )}
                                         </div>
@@ -1817,7 +1817,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                                 cursor: isSimulating ? 'not-allowed' : 'pointer'
                                             }}
                                         >
-                                            ✓ {analysis.recommendedLandmarkMoves?.length > 0 ? 'Simulate Full Procedure' : 'Apply This Recommendation'}
+                                            {analysis.recommendedLandmarkMoves?.length > 0 ? 'Simulate Full Procedure' : 'Apply This Recommendation'}
                                         </button>
 
                                         {applyNotice && (
@@ -1878,7 +1878,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                                     background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)',
                                                     borderRadius: 6, fontSize: '0.7rem', color: 'rgba(52,211,153,0.8)', lineHeight: 1.5
                                                 }}>
-                                                    💡 Select each landmark from the dropdown on the left, then use Precision mode to enter the exact mm value.
+                                                    Select each landmark from the dropdown on the left, then use Precision mode to enter the exact mm value.
                                                 </div>
                                             </div>
                                         )}
@@ -1965,7 +1965,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
                                     }}
                                 >
-                                    💾 Save to Patient Record
+                                    Save to Patient Record
                                 </button>
                             )}
 
