@@ -566,6 +566,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     };
 
     const handleTouchEnd = () => { setDraggingIdx(null); };
+    const handleMouseUp = () => { setDraggingIdx(null); };
 
     useEffect(() => {
         const handleKeyDown = (e) => {
