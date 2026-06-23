@@ -1277,7 +1277,6 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onTouchCancel={handleTouchEnd}
-                onMouseLeave={handleMouseUp}
                 style={{
                     display: 'block',
                     width: '100%',
