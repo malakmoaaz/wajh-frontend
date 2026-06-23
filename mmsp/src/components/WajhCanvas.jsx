@@ -518,7 +518,54 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         });
     };
 
-    const handleMouseUp = () => { setDraggingIdx(null); };
+    const getTouchPos = (e) => {
+        const touch = e.touches[0] || e.changedTouches[0];
+        const rect = canvasRef.current.getBoundingClientRect();
+        const scaleX = canvasRef.current.width / rect.width;
+        const scaleY = canvasRef.current.height / rect.height;
+        return {
+            x: (touch.clientX - rect.left) * scaleX,
+            y: (touch.clientY - rect.top) * scaleY
+        };
+    };
+
+    const handleTouchStart = (e) => {
+        if (isSimulating || simulationResult) return;
+        e.preventDefault();
+        if (!canvasRef.current || canvasRef.current.clientWidth === 0) return;
+        const { x, y } = getTouchPos(e);
+        let minDist = 20 * (canvasRef.current.width / canvasRef.current.clientWidth);
+        let idx = -1;
+        points.forEach((p, i) => {
+            const dist = Math.sqrt((p.x - x) ** 2 + (p.y - y) ** 2);
+            if (dist < minDist) { minDist = dist; idx = i; }
+        });
+        if (idx !== -1) { setDraggingIdx(idx); setActivePointIdx(idx); }
+    };
+
+    const handleTouchMove = (e) => {
+        if (isSimulating || draggingIdx === null) return;
+        e.preventDefault();
+        const raw = getTouchPos(e);
+        const { x, y } = clampToValidRange(draggingIdx, raw.x, raw.y);
+        const activePoint = points[draggingIdx];
+        setPoints(prev => {
+            const next = [...prev];
+            next[draggingIdx] = patchPoint3DFields(next[draggingIdx], x, y);
+            return next;
+        });
+        setMeshPoints(prev => {
+            if (!prev?.length) return prev;
+            const next = [...prev];
+            if (!activePoint) return prev;
+            const meshIndex = activePoint.mpId ?? activePoint.index;
+            if (meshIndex === undefined || !next[meshIndex]) return prev;
+            next[meshIndex] = patchPoint3DFields(next[meshIndex], x, y);
+            return next;
+        });
+    };
+
+    const handleTouchEnd = () => { setDraggingIdx(null); };
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -1225,6 +1272,11 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
                 onMouseLeave={handleMouseUp}
                 style={{
                     display: 'block',
