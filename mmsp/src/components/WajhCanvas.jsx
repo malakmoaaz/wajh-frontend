@@ -651,18 +651,40 @@ const handleSimulate = async (landmarkSet = points, procedureIdOverride = null, 
     };
 
     const handleApplyRecommendation = (procedureLabel) => {
-    const presetId = mapRecommendationToPresetId(procedureLabel);
-    if (!presetId) {
-        setApplyNotice(`"${procedureLabel}" has no direct surgical preset to simulate — it's informational only.`);
-        setTimeout(() => setApplyNotice(null), 3500);
-        return;
-    }
-    setSelectedProcedureId(presetId);
-    // Use patient-specific cephalometric targets if the rule engine computed them.
-    // Each patient gets a different simulation based on their actual facial proportions.
-    const targets = analysis?.targetLandmarks?.length ? analysis.targetLandmarks : null;
-    handleSimulate(points, presetId, targets);
-};
+        if (!procedureLabel || procedureLabel === 'No Surgery Required') {
+            setApplyNotice('No surgery is recommended for this patient based on current landmark positions.');
+            setTimeout(() => setApplyNotice(null), 3500);
+            return;
+        }
+
+        // For combined procedures (e.g. "BSSO Advancement + Sliding Genioplasty"),
+        // apply ALL per-landmark targets from the rule engine's φ-ratio computation
+        // directly — this moves every recommended landmark to its computed ideal
+        // position in one action, regardless of how many procedures are combined.
+        // This is more accurate than picking a single preset, and works for any
+        // combination the rule engine might produce.
+        if (analysis?.recommendedLandmarkMoves?.length > 0) {
+            analysis.recommendedLandmarkMoves.forEach(m => {
+                handleApplySingleLandmark(m.id, m.targetX, m.targetY);
+            });
+            // After applying all landmarks, preview the result visually
+            setTimeout(() => handleSimulate(points, null, null, true), 150);
+            setApplyNotice(`Applied ${analysis.recommendedLandmarkMoves.length} landmark corrections for ${procedureLabel}.`);
+            setTimeout(() => setApplyNotice(null), 4000);
+            return;
+        }
+
+        // Fallback: no computed targets available, use the closest preset
+        const presetId = mapRecommendationToPresetId(procedureLabel);
+        if (!presetId) {
+            setApplyNotice(`"${procedureLabel}" has no direct surgical preset to simulate — it's informational only.`);
+            setTimeout(() => setApplyNotice(null), 3500);
+            return;
+        }
+        setSelectedProcedureId(presetId);
+        const targets = analysis?.targetLandmarks?.length ? analysis.targetLandmarks : null;
+        handleSimulate(points, presetId, targets);
+    };
 
     const handleApplyGoldenRatioCorrection = (ratio) => {
     if (!ratio || ratio.within_norm) return;
@@ -830,22 +852,18 @@ const handleSimulate = async (landmarkSet = points, procedureIdOverride = null, 
         if (!simulationResult || !imgObj) return;
         setIsExporting(true);
         try {
-            const originalPoints = initialLandmarks.map(p => ({ ...p }));
-            // Use patient-specific cephalometric targets when available (from rule engine).
-// Falls back to fixed preset offsets for manual simulate button presses.
-const procedureTargets = adaptiveTargets?.length
-    ? originalPoints.map(p => {
-        const t = adaptiveTargets.find(t => t.id === p.id);
-        return t ? { ...p, x: t.x, y: t.y } : p;
-    })
-    : buildProcedureSimulationLandmarks(
-        originalPoints, landmarkSet, activeProcedureId,
-        { intensity: procedureIntensity, width: imgObj.width, height: imgObj.height }
-    );
+            // Pass the current landmark positions directly — the simulation has
+            // already happened, there's no need to rebuild procedure targets here.
+            // Using undefined variables from handleSimulate's scope was the
+            // previous bug causing this to crash immediately on every device.
             await generateReport({
-                simulationResult, originalImage: imgObj,
-                initialLandmarks: originalPoints, currentPoints: procedureTargets,
-                calibrationData, simulationConfidence, procedureLabel: selectedProcedure.label
+                simulationResult,
+                originalImage: imgObj,
+                initialLandmarks: initialLandmarks.map(p => ({ ...p })),
+                currentPoints: points,
+                calibrationData,
+                simulationConfidence,
+                procedureLabel: selectedProcedure.label
             });
         } catch (err) {
             console.error('PDF export failed:', err);
@@ -1932,26 +1950,6 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                             )}
                                 </div>
                             )}
-
-                            {/* Export PDF */}
-                            <button
-                                type="button" onClick={handleExportPDF} disabled={isExporting}
-                                style={{
-                                    padding: '14px', fontSize: '0.9rem', borderRadius: '8px',
-                                    border: '1px solid rgba(239, 68, 68, 0.5)',
-                                    background: isExporting ? 'rgba(239, 68, 68, 0.05)' : 'rgba(239, 68, 68, 0.1)',
-                                    color: '#ef4444', cursor: isExporting ? 'wait' : 'pointer',
-                                    fontWeight: '700', width: '100%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                                    opacity: isExporting ? 0.7 : 1, transition: 'all var(--transition-fast)',
-                                    boxShadow: isExporting ? 'none' : '0 0 12px rgba(239, 68, 68, 0.15)',
-                                    letterSpacing: '0.03em'
-                                }}
-                                onMouseEnter={(e) => { if (!isExporting) e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; }}
-                                onMouseLeave={(e) => { if (!isExporting) e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
-                            >
-                                {isExporting ? 'Generating PDF...' : 'Export PDF Report'}
-                            </button>
 
                             {/* Save to Patient Record */}
                             {simulationResult && (
