@@ -65,7 +65,6 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     const [points, setPoints] = useState([]);
     const [meshPoints, setMeshPoints] = useState([]);
     const [draggingIdx, setDraggingIdx] = useState(null);
-    const [manuallyEdited, setManuallyEdited] = useState(false);
     const [rangeWarning, setRangeWarning] = useState(null);
     const [imgObj, setImgObj] = useState(null);
 
@@ -113,7 +112,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
     const [analysis,          setAnalysis]         = useState(null);
     const [isAnalyzing,       setIsAnalyzing]       = useState(false);
     const [analysisError,     setAnalysisError]     = useState(null);
-    const [showAiOverlay,     setShowAiOverlay]     = useState(true);
+    const [showAiOverlay,     setShowAiOverlay]     = useState(false);
 
     // ── Procedure clinical explanations ───────────────────────────
     const PROCEDURE_INFO = {
@@ -519,10 +518,7 @@ export function WajhCanvas({ imageSrc, initialLandmarks, initialMeshLandmarks })
         });
     };
 
-    const handleMouseUp = () => {
-        if (draggingIdx !== null) setManuallyEdited(true);
-        setDraggingIdx(null);
-    };
+    const handleMouseUp = () => { setDraggingIdx(null); };
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -811,7 +807,6 @@ const handleSimulate = async (landmarkSet = points, procedureIdOverride = null, 
                 : initialLandmarks.map((p, index) => ({ index, ...p }))
         );
         setActivePointIdx(null);
-        setManuallyEdited(false);
     };
 
     const handleBeginAdjustment = () => {
@@ -910,7 +905,7 @@ const handleSimulate = async (landmarkSet = points, procedureIdOverride = null, 
         lineHeight: 1.45
     };
 
-    const hasLandmarkEdits = manuallyEdited || points.some((point, index) => {
+    const hasLandmarkEdits = points.some((point, index) => {
         const original = initialLandmarks[index];
         if (!original) return false;
         return Math.hypot(point.x - original.x, point.y - original.y) > 0.5;
@@ -1252,7 +1247,7 @@ const specificRegionBoxes = imgObj && changedProcedurePoints.length > 0
                             alt="Original patient comparison overlay"
                             style={{
                                 position: 'absolute', inset: 0, height: '100%', width: '100%',
-                                objectFit: 'fill',
+                                objectFit: 'contain',
                                 clipPath: comparisonMode === 'split'
                                     ? `inset(0 ${100 - comparisonSplit}% 0 0)` : 'none',
                                 mixBlendMode: comparisonMode === 'difference' ? 'difference' : 'normal',
